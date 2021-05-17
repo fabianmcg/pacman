@@ -86,6 +86,19 @@ def scoreEvaluationFunction(currentGameState):
     """
     return currentGameState.getScore()
 
+def serialize_state(state):
+    pp = state.getPacmanPosition()
+    gp = state.getGhostPosition(1)
+    food = state.getFood()
+    return pp, gp, food
+
+class QState:
+    def __init__(self, s, a, na, score):
+        self.s = s
+        self.a = a
+        self.na = na
+        self.score = score
+
 class QAgent(Agent):
     def __init__(self, alpha = 0.5, gamma = 0.75, delta = 0.5, numTraining = 1):
         self.index = 0 # Pacman is always agent index 0
@@ -95,22 +108,13 @@ class QAgent(Agent):
         self.Q = dict()
         self.pi = dict()
         self.rnd = np.random.default_rng(12345)
-        self.score = 0
-        self.last = [None, None, None, None, None, None, None]
+        self.state = None
     
-    def serializeState(self, gameState):
-        pos = gameState.getPacmanPosition()
-        gpos = gameState.getGhostStates()
-        food = gameState.getFood()
-        return pos, food, gpos[0].getPosition()
-
     def final(self, state):
-        self.Q[self.last[2]] = self.last[0]
-        self.pi[self.last[2]] = self.last[1]
-        self.update(self.last[2], self.last[3], self.last[4], state.getScore() - self.last[5], self.last[6])
-        self.score = 0
+        self.learn(serialize_state(state), state.getScore())
+        self.state = None
 
-    def giQpi(self, state, n):
+    def get_Qpi(self, state, n):
         if state in self.Q :
             return self.Q[state], self.pi[state]
         else:
@@ -118,31 +122,23 @@ class QAgent(Agent):
             pi = self.pi[state] = np.full(n, 1. / n)
             return Q, pi
     
-    def update(self, cst, nst, aid, s, n):
-        Q = self.Q[cst]
-        pi = self.pi[cst]
-        if nst in self.Q:
-            s += self.gamma * np.amax(self.Q[nst])
-        Q[aid] = (1 - self.alpha) * Q[aid] + self.alpha * s
-        pi[aid] += self.delta if  aid == np.argmax(Q) else -self.delta / (n - 1)
-        pi = np.maximum(pi, np.full(n, 0.))
-        self.pi[cst] = pi / np.sum(pi)
+    def learn(self, sp, score):
+        Q = self.Q[self.state.s]
+        pi = self.pi[self.state.s]
+        score -= self.state.score
+        if sp in self.Q:
+            score += self.gamma * np.amax(self.Q[sp])
+        Q[self.state.a] = (1 - self.alpha) * Q[self.state.a] + self.alpha * score
+        pi[self.state.a] += self.delta if  self.state.a == np.argmax(Q) else -self.delta / (self.state.na - 1)
+        pi = np.maximum(pi, np.full(self.state.na, 0.))
+        self.pi[self.state.s] = pi / np.sum(pi)
 
-    def getAction(self, gameState):
-        legalMoves = gameState.getLegalActions()
-        cst = self.serializeState(gameState)
-        Q, pi = self.giQpi(cst, len(legalMoves))
-        action = self.rnd.choice(legalMoves, p=pi)
-        successorGameState = gameState.generatePacmanSuccessor(action)
-        nst = self.serializeState(successorGameState)
-        aid = legalMoves.index(action)
-        self.last[0] = np.copy(Q)
-        self.last[1] = np.copy(pi)
-        self.last[2] = cst
-        self.last[3] = nst
-        self.last[4] = aid
-        self.last[5] = self.score
-        self.last[6] = len(legalMoves)
-        self.update(cst, nst, aid, successorGameState.getScore() - self.score, len(legalMoves))
-        self.score = successorGameState.getScore()
+    def getAction(self, state):
+        actions = state.getLegalActions()
+        s = serialize_state(state)
+        Q, pi = self.get_Qpi(s, len(actions))
+        action = self.rnd.choice(actions, p=pi)
+        if self.state != None:
+            self.learn(s, state.getScore())
+        self.state = QState(s, actions.index(action), len(actions), state.getScore())
         return action
