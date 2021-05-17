@@ -118,11 +118,11 @@ def run(args):
                                     os.mkdir(fname)
                                 except:
                                     pass
-                                args = ["python3", "pacman.py", "-l", layouts[layout], "-p", agents[agent], "-n", ntg + args.number_of_games, "-x", ntg, 
+                                pargs = ["python3", "pacman.py", "-l", layouts[layout], "-p", agents[agent], "-n", ntg + args.number_of_games, "-x", ntg, 
                                     "-g", "DirectionalGhost", "-r", "-q", "-a", "a={},d={},g={},dl={}".format(lr, d, g, dl), "--path", fname]
-                                args = list(map(str, args))
+                                pargs = list(map(str, pargs))
                                 result = subprocess.run(
-                                    args, capture_output=True, text=True
+                                    pargs, capture_output=True, text=True
                                 )
                                 with open(fname + "/stdout.txt", "w") as file:
                                     print(result.stdout, file=file)
