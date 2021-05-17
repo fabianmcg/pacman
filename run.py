@@ -36,7 +36,7 @@ def parse_args():
     )
     parser.add_argument(
         "-c",
-        "--class",
+        "--classes",
         metavar="<class>",
         type=str,
         choices=["single", "small", "medium", "large"],
@@ -130,7 +130,7 @@ def run(args):
                                     print(result.stderr, file=file)
                                 print(fname,"\n",result.stdout)
 def classes(args):
-    if args.class == "large":
+    if args.classes == "large":
         args.agents = [0, 1]
         args.layouts = [2, 6, 7]
         args.number_of_training_games = [*range(1000, 11000, 1000)]
