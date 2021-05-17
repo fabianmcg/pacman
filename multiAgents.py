@@ -86,33 +86,44 @@ def scoreEvaluationFunction(currentGameState):
     """
     return currentGameState.getScore()
 
-def serialize_state(state):
-    pp = state.getPacmanPosition()
-    gp = state.getGhostPosition(1)
-    food = state.getFood()
-    return pp, gp, food
+class Rewards:
+    def __init__(self):
+        self.score = 0
+    
+    def reward(self, state):
+        score = state.getScore() - self.score
+        self.score = state.getScore()
+        return score
+    
+    def reset(self):
+        self.score = 0
 
 class QState:
-    def __init__(self, s, a, na, score):
+    def __init__(self, s, a, na):
         self.s = s
         self.a = a
         self.na = na
-        self.score = score
 
-class QAgent(Agent):
-    def __init__(self, alpha = 0.5, gamma = 0.75, delta = 0.5, numTraining = 1):
+class PHCAgent(Agent):
+    def __init__(self, a = 0.5, g = 0.75, d = 0.5, dl = 1., numTraining = 1):
         self.index = 0 # Pacman is always agent index 0
-        self.gamma = gamma
-        self.alpha = alpha
-        self.delta = delta
+        self.gamma = float(g)
+        self.alpha = float(a)
+        self.delta = float(d)
+        self.num_training = int(numTraining)
+        self.it = 0
         self.Q = dict()
         self.pi = dict()
         self.rnd = np.random.default_rng(12345)
-        self.state = None
+        self.last = None
+        self.scoring_fn = Rewards()
     
     def final(self, state):
-        self.learn(serialize_state(state), state.getScore())
-        self.state = None
+        if self.it < self.num_training:
+            self.learn(state.serialize(), state.getScore())
+        self.last = None
+        self.scoring_fn.reset()
+        self.it += 1
 
     def get_Qpi(self, state, n):
         if state in self.Q :
@@ -122,23 +133,90 @@ class QAgent(Agent):
             pi = self.pi[state] = np.full(n, 1. / n)
             return Q, pi
     
-    def learn(self, sp, score):
-        Q = self.Q[self.state.s]
-        pi = self.pi[self.state.s]
-        score -= self.state.score
+    def learn(self, sp, reward):
+        Q = self.Q[self.last.s]
+        pi = self.pi[self.last.s]
         if sp in self.Q:
-            score += self.gamma * np.amax(self.Q[sp])
-        Q[self.state.a] = (1 - self.alpha) * Q[self.state.a] + self.alpha * score
-        pi[self.state.a] += self.delta if  self.state.a == np.argmax(Q) else -self.delta / (self.state.na - 1)
-        pi = np.maximum(pi, np.full(self.state.na, 0.))
-        self.pi[self.state.s] = pi / np.sum(pi)
+            reward += self.gamma * np.amax(self.Q[sp])
+        Q[self.last.a] = (1 - self.alpha) * Q[self.last.a] + self.alpha * reward
+        pi[self.last.a] += self.delta if  self.last.a == np.argmax(Q) else -self.delta / (self.last.na - 1)
+        pi = np.maximum(pi, np.full(self.last.na, 0.))
+        self.pi[self.last.s] = pi / np.sum(pi)
 
     def getAction(self, state):
         actions = state.getLegalActions()
-        s = serialize_state(state)
+        s = state.serialize()
         Q, pi = self.get_Qpi(s, len(actions))
-        action = self.rnd.choice(actions, p=pi)
-        if self.state != None:
-            self.learn(s, state.getScore())
-        self.state = QState(s, actions.index(action), len(actions), state.getScore())
+        if self.it < self.num_training:
+            action = self.rnd.choice(actions, p=pi)
+            if self.last != None:
+                self.learn(s, self.scoring_fn.reward(state))
+        else:
+            action = actions[np.argmax(Q)]
+        self.last = QState(s, actions.index(action), len(actions))
+        return action
+
+class WPHCAgent(Agent):
+    def __init__(self, a = 0.1, g = 0.75, d = 0.25, dl = 0.75, numTraining = 1):
+        self.index = 0 # Pacman is always agent index 0
+        self.gamma = float(g)
+        self.alpha = float(a)
+        self.delta_w = float(d)
+        self.delta_l = float(dl)
+        self.num_training = int(numTraining)
+        self.it = 0
+        self.Q = dict()
+        self.C = dict()
+        self.pi = dict()
+        self.pih = dict()
+        self.rnd = np.random.default_rng(seed=42)
+        self.last = None
+        self.scoring_fn = Rewards()
+    
+    def final(self, state):
+        if self.it < self.num_training:
+            self.learn(state.serialize(), state.getScore())
+        self.last = None
+        self.scoring_fn.reset()
+        self.it += 1
+
+    def get_Qpi(self, state, n):
+        if state in self.Q :
+            return self.Q[state], self.pi[state]
+        else:
+            Q = self.Q[state] = np.full(n, 0.)
+            pi = self.pi[state] = np.full(n, 1. / n)
+            self.C[state] = 0
+            self.pih[state] = np.full(n, 1. / n)
+            return Q, pi
+    
+    def learn(self, sp, reward):
+        Q = self.Q[self.last.s]
+        pi = self.pi[self.last.s]
+        self.C[self.last.s] += 1
+        C = self.C[self.last.s]
+        pih = self.pih[self.last.s]
+        pih = pih + (pi - pih) / C
+        self.pih[self.last.s] = pih
+        if sp in self.Q:
+            reward += self.gamma * np.amax(self.Q[sp])
+        Q[self.last.a] = (1 - self.alpha) * Q[self.last.a] + self.alpha * reward
+        piQ = np.dot(pi, Q)
+        pihQ = np.dot(pih, Q)
+        delta = self.delta_w if piQ > pihQ else self.delta_l
+        pi[self.last.a] += delta if  self.last.a == np.argmax(Q) else -delta / (self.last.na - 1)
+        pi = np.maximum(pi, np.full(self.last.na, 0.))
+        self.pi[self.last.s] = pi / np.sum(pi)
+
+    def getAction(self, state):
+        actions = state.getLegalActions()
+        s = state.serialize()
+        Q, pi = self.get_Qpi(s, len(actions))
+        if self.it < self.num_training:
+            action = self.rnd.choice(actions, p=pi)
+            if self.last != None:
+                self.learn(s, self.scoring_fn.reward(state))
+        else:
+            action = actions[np.argmax(Q)]
+        self.last = QState(s, actions.index(action), len(actions))
         return action

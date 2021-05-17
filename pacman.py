@@ -52,6 +52,7 @@ import types
 import time
 import random
 import os
+import numpy as np
 
 ###################################################
 # YOUR INTERFACE TO THE PACMAN WORLD: A GameState #
@@ -220,6 +221,25 @@ class GameState:
 
     def isWin(self):
         return self.data._win
+
+    def serialize(self):
+        food = self.getFood().packBits()
+        serialize_position = lambda x: int(x[0]) * food[1] + int(x[1])
+        agents = [serialize_position(a.getPosition()) for a in self.data.agentStates]
+        capsules = [serialize_position(a) for a in self.data.capsules]
+        ghost_timers = [a.scaredTimer for a in self.getGhostStates()]
+        return tuple(agents) + food[2:] + tuple(capsules) + tuple(ghost_timers)
+
+    def matrix(self):
+        grid = np.array(self.getFood().data, dtype=np.int32)
+        wall = np.array(self.getWalls().data, dtype=np.int32)
+        grid = 2 * grid + wall
+        pp = self.getPacmanPosition()
+        grid[int(pp[0]), int(pp[1])] += 4
+        for a in self.getGhostStates():
+            pp = a.getPosition()
+            grid[int(pp[0]), int(pp[1])] += 8
+        return grid[1:-1, 1:-1]
 
     #############################################
     #             Helper methods:               #
@@ -554,12 +574,14 @@ def readCommand(argv):
                       help='Turns on exception handling and timeouts during games', default=False)
     parser.add_option('--timeout', dest='timeout', type='int',
                       help=default('Maximum length of time an agent can spend computing in a single game'), default=30)
+    parser.add_option('--path', dest='path', type='str',
+                      help=default('Path to results'), default="")
 
     options, otherjunk = parser.parse_args(argv)
     if len(otherjunk) != 0:
         raise Exception('Command line input not understood: ' + str(otherjunk))
     args = dict()
-
+    args["path"] = options.path
     # Fix the random seed
     if options.fixRandomSeed:
         random.seed('cs188')
@@ -672,7 +694,7 @@ def replayGame(layout, actions, display):
     display.finish()
 
 
-def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30):
+def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, path=""):
     import __main__
     __main__.__dict__['_display'] = display
 
@@ -695,12 +717,14 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         if not beQuiet:
             games.append(game)
 
-        if record:
+        if record and not beQuiet:
             import time
             import pickle
             fname = ('recorded-game-%d' % (i + 1)) + \
                 '-'.join([str(t) for t in time.localtime()[1:6]])
-            f = file(fname, 'w')
+            if path != "":
+                fname = path + "/" + fname
+            f = open(fname, 'wb')
             components = {'layout': layout, 'actions': game.moveHistory}
             pickle.dump(components, f)
             f.close()
