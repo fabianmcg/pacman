@@ -253,6 +253,8 @@ class Grid:
         for i in range(self.height * self.width):
             bit = self.CELLS_PER_INT - (i % self.CELLS_PER_INT) - 1
             x, y = self._cellIndexToPosition(i)
+            x = int(x)
+            y = int(y)
             if self[x][y]:
                 currentInt += 2 ** bit
             if (i + 1) % self.CELLS_PER_INT == 0:
