@@ -5,6 +5,7 @@
 import argparse
 import subprocess
 import os
+import numpy as  np
 
 agents = ["PHCAgent", "WPHCAgent", "DQNAgent"]
 layouts = ["capsuleClassic", "powerClassic", "smallClassic", "contestClassic", "minimaxClassic", "openClassic", "originalClassic", "testClassic", "trickyClassic", "mediumClassic", "trappedClassic"]
@@ -106,25 +107,41 @@ def parse_args():
 
 def run(args):
     for agent in args.agents:
-        for layout in args.layout:
+        for layout in args.layouts:
             for ntg in args.number_of_training_games:
                 for lr in args.learning_rate:
                     for g in args.gamma:
                         for d in args.delta:
                             for dl in args.delta_lose:
                                 fname = "{}-{}-{}-{}-{}-{}-{}".format(agents[agent], layouts[layout], ntg, lr, g, d, dl)
-                                os.mkdir(fname)
+                                try:
+                                    os.mkdir(fname)
+                                except:
+                                    pass
+                                args = ["python3", "pacman.py", "-l", layouts[layout], "-p", agents[agent], "-n", ntg + args.number_of_games, "-x", ntg, 
+                                    "-g", "DirectionalGhost", "-r", "-q", "-a", "a={},d={},g={},dl={}".format(lr, d, g, dl), "--path", fname]
+                                args = list(map(str, args))
                                 result = subprocess.run(
-                                    ["python3", "pacman.py", "-l", layouts[layout], "-p", agents[agent], "-n", ntg + args.number_of_games, "-x", ntg, 
-                                    "-g", "DirectionalGhost", "-r", "-q", "-a", "a={},d={},g={},dl={}".format(lr, d, g, dl), "--path", fname], capture_output=True, text=True
+                                    args, capture_output=True, text=True
                                 )
                                 with open(fname + "/stdout.txt", "w") as file:
                                     print(result.stdout, file=file)
                                 with open(fname + "/stderr.txt", "w") as file:
                                     print(result.stderr, file=file)
+                                print(fname,"\n",result.stdout)
+def classes(args):
+    if args.class == "large":
+        args.agents = [0, 1]
+        args.layouts = [2, 6, 7]
+        args.number_of_training_games = [*range(1000, 11000, 1000)]
+        args.learning_rate = np.linspace(0.1, 1., 4, endpoint=True)
+        args.gamma = np.linspace(0.1, 1., 4, endpoint=True)
+        args.delta = np.linspace(0.1, 0.5, 4, endpoint=True)
+        args.delta_lose = 2 * args.delta
 
 def main():
     args = parse_args()
+    classes(args)
     run(args)
 
 if __name__ == "__main__":
