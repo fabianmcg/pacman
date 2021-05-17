@@ -15,7 +15,7 @@
 from util import manhattanDistance
 from game import Directions
 import random, util
-
+import numpy as np
 from game import Agent
 
 class ReflexAgent(Agent):
@@ -86,93 +86,63 @@ def scoreEvaluationFunction(currentGameState):
     """
     return currentGameState.getScore()
 
-class MultiAgentSearchAgent(Agent):
-    """
-    This class provides some common elements to all of your
-    multi-agent searchers.  Any methods defined here will be available
-    to the MinimaxPacmanAgent, AlphaBetaPacmanAgent & ExpectimaxPacmanAgent.
-
-    You *do not* need to make any changes here, but you can if you want to
-    add functionality to all your adversarial search agents.  Please do not
-    remove anything, however.
-
-    Note: this is an abstract class: one that should not be instantiated.  It's
-    only partially specified, and designed to be extended.  Agent (game.py)
-    is another abstract class.
-    """
-
-    def __init__(self, evalFn = 'scoreEvaluationFunction', depth = '2'):
+class QAgent(Agent):
+    def __init__(self, alpha = 0.5, gamma = 0.75, delta = 0.5, numTraining = 1):
         self.index = 0 # Pacman is always agent index 0
-        self.evaluationFunction = util.lookup(evalFn, globals())
-        self.depth = int(depth)
+        self.gamma = gamma
+        self.alpha = alpha
+        self.delta = delta
+        self.Q = dict()
+        self.pi = dict()
+        self.rnd = np.random.default_rng(12345)
+        self.score = 0
+        self.last = [None, None, None, None, None, None, None]
+    
+    def serializeState(self, gameState):
+        pos = gameState.getPacmanPosition()
+        gpos = gameState.getGhostStates()
+        food = gameState.getFood()
+        return pos, food, gpos[0].getPosition()
 
-class MinimaxAgent(MultiAgentSearchAgent):
-    """
-    Your minimax agent (question 2)
-    """
+    def final(self, state):
+        self.Q[self.last[2]] = self.last[0]
+        self.pi[self.last[2]] = self.last[1]
+        self.update(self.last[2], self.last[3], self.last[4], state.getScore() - self.last[5], self.last[6])
+        self.score = 0
 
-    def getAction(self, gameState):
-        """
-        Returns the minimax action from the current gameState using self.depth
-        and self.evaluationFunction.
-
-        Here are some method calls that might be useful when implementing minimax.
-
-        gameState.getLegalActions(agentIndex):
-        Returns a list of legal actions for an agent
-        agentIndex=0 means Pacman, ghosts are >= 1
-
-        gameState.generateSuccessor(agentIndex, action):
-        Returns the successor game state after an agent takes an action
-
-        gameState.getNumAgents():
-        Returns the total number of agents in the game
-
-        gameState.isWin():
-        Returns whether or not the game state is a winning state
-
-        gameState.isLose():
-        Returns whether or not the game state is a losing state
-        """
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
-
-class AlphaBetaAgent(MultiAgentSearchAgent):
-    """
-    Your minimax agent with alpha-beta pruning (question 3)
-    """
-
-    def getAction(self, gameState):
-        """
-        Returns the minimax action using self.depth and self.evaluationFunction
-        """
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
-
-class ExpectimaxAgent(MultiAgentSearchAgent):
-    """
-      Your expectimax agent (question 4)
-    """
+    def giQpi(self, state, n):
+        if state in self.Q :
+            return self.Q[state], self.pi[state]
+        else:
+            Q = self.Q[state] = np.full(n, 0.)
+            pi = self.pi[state] = np.full(n, 1. / n)
+            return Q, pi
+    
+    def update(self, cst, nst, aid, s, n):
+        Q = self.Q[cst]
+        pi = self.pi[cst]
+        if nst in self.Q:
+            s += self.gamma * np.amax(self.Q[nst])
+        Q[aid] = (1 - self.alpha) * Q[aid] + self.alpha * s
+        pi[aid] += self.delta if  aid == np.argmax(Q) else -self.delta / (n - 1)
+        pi = np.maximum(pi, np.full(n, 0.))
+        self.pi[cst] = pi / np.sum(pi)
 
     def getAction(self, gameState):
-        """
-        Returns the expectimax action using self.depth and self.evaluationFunction
-
-        All ghosts should be modeled as choosing uniformly at random from their
-        legal moves.
-        """
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
-
-def betterEvaluationFunction(currentGameState):
-    """
-    Your extreme ghost-hunting, pellet-nabbing, food-gobbling, unstoppable
-    evaluation function (question 5).
-
-    DESCRIPTION: <write something here so we know what you did>
-    """
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
-
-# Abbreviation
-better = betterEvaluationFunction
+        legalMoves = gameState.getLegalActions()
+        cst = self.serializeState(gameState)
+        Q, pi = self.giQpi(cst, len(legalMoves))
+        action = self.rnd.choice(legalMoves, p=pi)
+        successorGameState = gameState.generatePacmanSuccessor(action)
+        nst = self.serializeState(successorGameState)
+        aid = legalMoves.index(action)
+        self.last[0] = np.copy(Q)
+        self.last[1] = np.copy(pi)
+        self.last[2] = cst
+        self.last[3] = nst
+        self.last[4] = aid
+        self.last[5] = self.score
+        self.last[6] = len(legalMoves)
+        self.update(cst, nst, aid, successorGameState.getScore() - self.score, len(legalMoves))
+        self.score = successorGameState.getScore()
+        return action
