@@ -106,12 +106,12 @@ def parse_args():
     return args
 
 def run(args):
-    for agent in args.agents:
-        for layout in args.layouts:
-            for dl in args.delta_lose:
-                for lr in args.learning_rate:
-                    for g in args.gamma:
-                        for d in args.delta:
+    for dl in args.delta_lose:
+        for lr in args.learning_rate:
+            for g in args.gamma:
+                for d in args.delta:
+                    for layout in args.layouts:
+                        for agent in args.agents:
                             for ntg in args.number_of_training_games:
                                 fname = "{}-{}-{}-{}-{}-{}-{}".format(agents[agent], layouts[layout], ntg, lr, g, d, dl)
                                 try:

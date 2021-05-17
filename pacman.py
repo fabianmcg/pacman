@@ -732,8 +732,8 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
     scores = {"scores" : [game.state.getScore() for game in games], "wins" : [game.state.isWin() for game in games]}
     with open('scores.json', 'w') as outfile:
         json.dump(scores, outfile)
-    print('Average Score:', sum(scores["scores"]) / float(len(scores["scores"])))
-    wins = scores["wins"]
+    print('Average Score:', sum(scores["scores"][numTraining:]) / float(len(scores["scores"][numTraining:])))
+    wins = scores["wins"][numTraining:]
     winRate = wins.count(True) / float(len(wins))
     print('Win Rate:      %d/%d (%.2f)' %
               (wins.count(True), len(wins), winRate))
