@@ -53,6 +53,7 @@ import time
 import random
 import os
 import numpy as np
+import json
 
 ###################################################
 # YOUR INTERFACE TO THE PACMAN WORLD: A GameState #
@@ -714,8 +715,8 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         game = rules.newGame(layout, pacman, ghosts,
                              gameDisplay, beQuiet, catchExceptions)
         game.run()
-        if not beQuiet:
-            games.append(game)
+        # if not beQuiet:
+        games.append(game)
 
         if record and not beQuiet:
             import time
@@ -728,17 +729,24 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
             components = {'layout': layout, 'actions': game.moveHistory}
             pickle.dump(components, f)
             f.close()
-
-    if (numGames-numTraining) > 0:
-        scores = [game.state.getScore() for game in games]
-        wins = [game.state.isWin() for game in games]
-        winRate = wins.count(True) / float(len(wins))
-        print('Average Score:', sum(scores) / float(len(scores)))
-        print('Scores:       ', ', '.join([str(score) for score in scores]))
-        print('Win Rate:      %d/%d (%.2f)' %
+    scores = {"scores" : [game.state.getScore() for game in games], "wins" : [game.state.isWin() for game in games]}
+    with open('scores.json', 'w') as outfile:
+        json.dump(scores, outfile)
+    print('Average Score:', sum(scores["scores"]) / float(len(scores["scores"])))
+    wins = scores["wins"]
+    winRate = wins.count(True) / float(len(wins))
+    print('Win Rate:      %d/%d (%.2f)' %
               (wins.count(True), len(wins), winRate))
-        print('Record:       ', ', '.join(
-            [['Loss', 'Win'][int(w)] for w in wins]))
+    # if (numGames-numTraining) > 0:
+    #     scores = [game.state.getScore() for game in games]
+    #     wins = [game.state.isWin() for game in games]
+    #     winRate = wins.count(True) / float(len(wins))
+    #     print('Average Score:', sum(scores) / float(len(scores)))
+    #     print('Scores:       ', ', '.join([str(score) for score in scores]))
+    #     print('Win Rate:      %d/%d (%.2f)' %
+    #           (wins.count(True), len(wins), winRate))
+    #     print('Record:       ', ', '.join(
+    #         [['Loss', 'Win'][int(w)] for w in wins]))
 
     return games
 

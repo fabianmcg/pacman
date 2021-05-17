@@ -108,11 +108,11 @@ def parse_args():
 def run(args):
     for agent in args.agents:
         for layout in args.layouts:
-            for ntg in args.number_of_training_games:
+            for dl in args.delta_lose:
                 for lr in args.learning_rate:
                     for g in args.gamma:
                         for d in args.delta:
-                            for dl in args.delta_lose:
+                            for ntg in args.number_of_training_games:
                                 fname = "{}-{}-{}-{}-{}-{}-{}".format(agents[agent], layouts[layout], ntg, lr, g, d, dl)
                                 try:
                                     os.mkdir(fname)
@@ -132,11 +132,11 @@ def run(args):
 def classes(args):
     if args.classes == "large":
         args.agents = [0, 1]
-        args.layouts = [2, 6, 7]
+        args.layouts = [7, 5, 2]
         args.number_of_training_games = [*range(1000, 11000, 1000)]
-        args.learning_rate = np.linspace(0.1, 1., 4, endpoint=True)
-        args.gamma = np.linspace(0.1, 1., 4, endpoint=True)
-        args.delta = np.linspace(0.1, 0.5, 4, endpoint=True)
+        args.learning_rate = np.linspace(0.1, 1., 2, endpoint=False)
+        args.gamma = np.linspace(0.1, 1., 2, endpoint=False)
+        args.delta = np.linspace(0.1, 0.5, 2, endpoint=False)
         args.delta_lose = 2 * args.delta
 
 def main():
