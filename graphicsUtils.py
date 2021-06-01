@@ -437,12 +437,12 @@ def writePostscript(filename):
 
 
 def updateVideo():
-    import cv2
-    from PIL import Image
-    import numpy as np
     global _video
     if _videoName == None:
         return
+    import cv2
+    from PIL import Image
+    import numpy as np
     if _video == None:
         ps = _canvas.postscript(colormode='color', pageheight=480, pagewidth=640)
         img = Image.open(io.BytesIO(ps.encode('utf-8')))
