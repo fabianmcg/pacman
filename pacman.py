@@ -329,8 +329,8 @@ class ClassicGameRules:
         game.gameOver = True
 
     def lose(self, state, game):
-        if not self.quiet:
-            print("Pacman died! Score: %d" % state.data.score)
+        # if not self.quiet:
+        #     print("Pacman died! Score: %d" % state.data.score)
         game.gameOver = True
 
     def getProgress(self, game):
@@ -576,13 +576,19 @@ def readCommand(argv):
     parser.add_option('--timeout', dest='timeout', type='int',
                       help=default('Maximum length of time an agent can spend computing in a single game'), default=30)
     parser.add_option('--path', dest='path', type='str',
-                      help=default('Path to results'), default="")
+                      help=default('Path to store the results'), default="")
+    parser.add_option('--scores', dest='scores', type='str',
+                      help=default('Scores filename'), default="game-scores.json")
+    parser.add_option('--video', dest='video', type='str',
+                      help=default('Video filename'), default=None)
 
     options, otherjunk = parser.parse_args(argv)
     if len(otherjunk) != 0:
         raise Exception('Command line input not understood: ' + str(otherjunk))
     args = dict()
     args["path"] = options.path
+    args["spath"] = options.scores
+    
     # Fix the random seed
     if options.fixRandomSeed:
         random.seed('cs188')
@@ -624,7 +630,7 @@ def readCommand(argv):
     else:
         import graphicsDisplay
         args['display'] = graphicsDisplay.PacmanGraphics(
-            options.zoom, frameTime=options.frameTime)
+            options.zoom, frameTime=options.frameTime, videoName=options.video)
     args['numGames'] = options.numGames
     args['record'] = options.record
     args['catchExceptions'] = options.catchExceptions
@@ -695,7 +701,7 @@ def replayGame(layout, actions, display):
     display.finish()
 
 
-def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, path=""):
+def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, path="", spath = ""):
     import __main__
     __main__.__dict__['_display'] = display
 
@@ -721,32 +727,29 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         if record and not beQuiet:
             import time
             import pickle
-            fname = ('recorded-game-%d' % (i + 1)) + \
+            file = ('recorded-game-%d' % (i + 1)) + \
                 '-'.join([str(t) for t in time.localtime()[1:6]])
             if path != "":
-                fname = path + "/" + fname
-            f = open(fname, 'wb')
+                file = path + "/" + file
+            f = open(file, 'wb')
             components = {'layout': layout, 'actions': game.moveHistory}
             pickle.dump(components, f)
             f.close()
-    scores = {"scores" : [game.state.getScore() for game in games], "wins" : [game.state.isWin() for game in games]}
-    with open('scores.json', 'w') as outfile:
+
+    scores = {"scores" : [game.state.getScore() for game in games], "wins" : [game.state.isWin() for game in games],
+                "nt" : numTraining, "ng" : numGames}
+    with open(spath, 'w') as outfile:
         json.dump(scores, outfile)
-    print('Average Score:', sum(scores["scores"][numTraining:]) / float(len(scores["scores"][numTraining:])))
-    wins = scores["wins"][numTraining:]
-    winRate = wins.count(True) / float(len(wins))
-    print('Win Rate:      %d/%d (%.2f)' %
+    if (numGames-numTraining) > 0:
+        scores = [game.state.getScore() for game in games]
+        wins = [game.state.isWin() for game in games]
+        winRate = wins.count(True) / float(len(wins))
+        print('Average Score:', sum(scores) / float(len(scores)))
+        print('Scores:       ', ', '.join([str(score) for score in scores]))
+        print('Win Rate:      %d/%d (%.2f)' %
               (wins.count(True), len(wins), winRate))
-    # if (numGames-numTraining) > 0:
-    #     scores = [game.state.getScore() for game in games]
-    #     wins = [game.state.isWin() for game in games]
-    #     winRate = wins.count(True) / float(len(wins))
-    #     print('Average Score:', sum(scores) / float(len(scores)))
-    #     print('Scores:       ', ', '.join([str(score) for score in scores]))
-    #     print('Win Rate:      %d/%d (%.2f)' %
-    #           (wins.count(True), len(wins), winRate))
-    #     print('Record:       ', ', '.join(
-    #         [['Loss', 'Win'][int(w)] for w in wins]))
+        print('Record:       ', ', '.join(
+            [['Loss', 'Win'][int(w)] for w in wins]))
 
     return games
 
