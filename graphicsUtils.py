@@ -20,6 +20,7 @@ import time
 import types
 import tkinter
 import os.path
+import io
 
 _Windows = sys.platform == 'win32'  # True if on Win95/98/NT
 
@@ -32,6 +33,8 @@ _canvas_y = None
 _canvas_col = None      # Current colour (set to black below)
 _canvas_tsize = 12
 _canvas_tserifs = 0
+_video = None
+_videoName = None
 
 
 def formatColor(r, g, b):
@@ -59,9 +62,11 @@ def sleep(secs):
         _root_window.mainloop()
 
 
-def begin_graphics(width=640, height=480, color=formatColor(0, 0, 0), title=None):
+def begin_graphics(width=640, height=480, color=formatColor(0, 0, 0), title=None, videoName = None):
 
-    global _root_window, _canvas, _canvas_x, _canvas_y, _canvas_xs, _canvas_ys, _bg_color
+    global _root_window, _canvas, _canvas_x, _canvas_y, _canvas_xs, _canvas_ys, _bg_color, _videoName
+    
+    _videoName = videoName
 
     # Check for duplicate call
     if _root_window is not None:
@@ -157,9 +162,12 @@ def _destroy_window(event=None):
 
 
 def end_graphics():
-    global _root_window, _canvas, _mouse_enabled
+    global _root_window, _canvas, _mouse_enabled, _video, _video_name
     try:
         try:
+            if _video != None:
+                updateVideo()
+                _video.release()
             sleep(1)
             if _root_window != None:
                 _root_window.destroy()
@@ -170,6 +178,8 @@ def end_graphics():
         _canvas = None
         _mouse_enabled = 0
         _clear_keys()
+        _video = None
+        _video_name = None
 
 
 def clear_screen(background=None):
@@ -420,11 +430,28 @@ def move_by(object, x, y=None,
 
 def writePostscript(filename):
     "Writes the current canvas to a postscript file."
-    psfile = file(filename, 'w')
-    psfile.write(_canvas.postscript(pageanchor='sw',
-                                    y='0.c',
-                                    x='0.c'))
-    psfile.close()
+    with open(filename, 'w') as psfile:
+        psfile.write(_canvas.postscript(pageanchor='sw',
+                                        y='0.c',
+                                        x='0.c'))
+
+
+def updateVideo():
+    import cv2
+    from PIL import Image
+    import numpy as np
+    global _video
+    if _videoName == None:
+        return
+    if _video == None:
+        ps = _canvas.postscript(colormode='color', pageheight=480, pagewidth=640)
+        img = Image.open(io.BytesIO(ps.encode('utf-8')))
+        _video = cv2.VideoWriter(_videoName, cv2.VideoWriter_fourcc(*'mp4v'), 20, (img.width, img.height))
+        _video.write(cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR))
+        return ""
+    ps = _canvas.postscript(colormode='color', pageheight=480, pagewidth=640)
+    img = Image.open(io.BytesIO(ps.encode('utf-8')))
+    _video.write(cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR))
 
 
 ghost_shape = [

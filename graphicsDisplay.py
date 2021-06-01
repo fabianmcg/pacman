@@ -12,6 +12,7 @@
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
 
+from tkinter.constants import W
 from graphicsUtils import *
 import math
 import time
@@ -161,7 +162,7 @@ class InfoPane:
 
 
 class PacmanGraphics:
-    def __init__(self, zoom=1.0, frameTime=0.0, capture=False):
+    def __init__(self, zoom=1.0, frameTime=0.0, capture=False, videoName = None):
         self.have_window = 0
         self.currentGhostImages = {}
         self.pacmanImage = None
@@ -169,6 +170,7 @@ class PacmanGraphics:
         self.gridSize = DEFAULT_GRID_SIZE * zoom
         self.capture = capture
         self.frameTime = frameTime
+        self.videoName = videoName
 
     def checkNullDisplay(self):
         return False
@@ -243,6 +245,7 @@ class PacmanGraphics:
         refresh()
 
     def update(self, newState):
+        updateVideo()
         agentIndex = newState._agentMoved
         agentState = newState.agentStates[agentIndex]
 
@@ -272,7 +275,7 @@ class PacmanGraphics:
         begin_graphics(screen_width,
                        screen_height,
                        BACKGROUND_COLOR,
-                       "CS188 Pacman")
+                       "CS188 Pacman", videoName = self.videoName)
 
     def drawPacman(self, pacman, index):
         position = self.getPosition(pacman)
