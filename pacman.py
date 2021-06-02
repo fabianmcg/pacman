@@ -566,8 +566,8 @@ def readCommand(argv):
     if len(otherjunk) != 0:
         raise Exception('Command line input not understood: ' + str(otherjunk))
     args = dict()
-    args["recordsPath"] = options.path
-    args["scorePath"] = options.scores
+    args["recordsPath"] = options.recordsPath
+    args["scorePath"] = options.scorePath
     
     # Fix the random seed
     if options.fixRandomSeed:

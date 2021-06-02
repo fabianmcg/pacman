@@ -35,15 +35,15 @@ def ghostIndex(i, j = 0, k = 0, l = 0):
     if l == 0 and k == 0 and j == 0:
         return i
     elif l == 0 and k == 0:
-        return triangular2TIndex(i, j, 8)
+        return triangular2TIndex(i - 1, j, 7)
     elif l == 0:
-        return triangular3TIndex(i, j, k, 8)
-    return triangular4TIndex(i, j, k, l, 8)
+        return triangular3TIndex(i - 2, j - 1, k, 6)
+    return triangular4TIndex(i - 3, j - 2, k - 1, l, 5)
 
 def getPositionTuple(pos):
     return (int(pos[0]), int(pos[1]))
 
-def gameStateVector(gameState):
+def gameStateMatrix(gameState):
     walls = np.array(gameState.getWalls().data, dtype=np.int16)
     food = np.array(gameState.getFood().data, dtype=np.int16)
     grid = 2 * food + walls
@@ -54,13 +54,26 @@ def gameStateVector(gameState):
     for ghost in gameState.getGhostStates():
         x, y = getPositionTuple(ghost.getPosition())
         if (x, y) not in ghosts:
-            ghosts[(x, y)] = []
-        ghosts[(x, y)].append((ghost.scaredTimer > 0) * 4 + DIR2CODE[ghost.getDirection()])
+            ghosts[(x, y)] = set()
+        ghosts[(x, y)].add((ghost.scaredTimer > 0) * 4 + DIR2CODE[ghost.getDirection()])
     for x, y in ghosts:
-        grid[x, y] += ghostIndex(*ghosts[(x, y)]) * 5
+        grid[x, y] += (1 + ghostIndex(*list(ghosts[(x, y)]))) * 5
+    return grid[1:-1, 1:-1]
+
+def gameStateVector(gameState):
+    state = gameStateMatrix(gameState).flatten()
     timers = [ghost.scaredTimer for ghost in gameState.getGhostStates()]
     timers.append(0)
-    return np.append(grid[1:-1, 1:-1].flatten(), max(timers))
+    return np.append(state, max(timers))
+
+def gameStateVectorPacked(gameState):
+    state = gameStateMatrix(gameState).flatten()
+    size = int((len(state) + 2) / 3) * len(state)
+    state = np.pad(state, (0, size - state.size)).reshape(int(size / 3), 3)
+    state = np.apply_along_axis(lambda x: x[0] + 355 * x[1] + 126025 * x[2], 1, state) 
+    timers = [ghost.scaredTimer for ghost in gameState.getGhostStates()]
+    timers.append(0)
+    return np.append(state, max(timers))
 
 class Rewards:
     def __init__(self, rewardFuntion = None, **kwargs):
