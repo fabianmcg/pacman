@@ -52,7 +52,6 @@ import types
 import time
 import random
 import os
-import numpy as np
 import json
 
 ###################################################
@@ -222,25 +221,6 @@ class GameState:
 
     def isWin(self):
         return self.data._win
-
-    def serialize(self):
-        food = self.getFood().packBits()
-        serialize_position = lambda x: int(x[0]) * food[1] + int(x[1])
-        agents = [serialize_position(a.getPosition()) for a in self.data.agentStates]
-        capsules = [serialize_position(a) for a in self.data.capsules]
-        ghost_timers = [a.scaredTimer for a in self.getGhostStates()]
-        return tuple(agents) + food[2:] + tuple(capsules) + tuple(ghost_timers)
-
-    def matrix(self):
-        grid = np.array(self.getFood().data, dtype=np.int32)
-        wall = np.array(self.getWalls().data, dtype=np.int32)
-        grid = 2 * grid + wall
-        pp = self.getPacmanPosition()
-        grid[int(pp[0]), int(pp[1])] += 4
-        for a in self.getGhostStates():
-            pp = a.getPosition()
-            grid[int(pp[0]), int(pp[1])] += 8
-        return grid[1:-1, 1:-1]
 
     #############################################
     #             Helper methods:               #
@@ -575,9 +555,9 @@ def readCommand(argv):
                       help='Turns on exception handling and timeouts during games', default=False)
     parser.add_option('--timeout', dest='timeout', type='int',
                       help=default('Maximum length of time an agent can spend computing in a single game'), default=30)
-    parser.add_option('--path', dest='path', type='str',
+    parser.add_option('--records-path', dest='recordsPath', type='str',
                       help=default('Path to store the results'), default="")
-    parser.add_option('--scores', dest='scores', type='str',
+    parser.add_option('--scores', dest='scorePath', type='str',
                       help=default('Scores filename'), default="game-scores.json")
     parser.add_option('--video', dest='video', type='str',
                       help=default('Video filename'), default=None)
@@ -586,8 +566,8 @@ def readCommand(argv):
     if len(otherjunk) != 0:
         raise Exception('Command line input not understood: ' + str(otherjunk))
     args = dict()
-    args["path"] = options.path
-    args["spath"] = options.scores
+    args["recordsPath"] = options.path
+    args["scorePath"] = options.scores
     
     # Fix the random seed
     if options.fixRandomSeed:
@@ -701,7 +681,7 @@ def replayGame(layout, actions, display):
     display.finish()
 
 
-def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, path="", spath = ""):
+def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, recordsPath="", scorePath = ""):
     import __main__
     __main__.__dict__['_display'] = display
 
@@ -729,8 +709,8 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
             import pickle
             file = ('recorded-game-%d' % (i + 1)) + \
                 '-'.join([str(t) for t in time.localtime()[1:6]])
-            if path != "":
-                file = path + "/" + file
+            if recordsPath != "":
+                file = recordsPath + "/" + file
             f = open(file, 'wb')
             components = {'layout': layout, 'actions': game.moveHistory}
             pickle.dump(components, f)
@@ -738,11 +718,11 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
 
     scores = {"scores" : [game.state.getScore() for game in games], "wins" : [game.state.isWin() for game in games],
                 "nt" : numTraining, "ng" : numGames}
-    with open(spath, 'w') as outfile:
+    with open(scorePath, 'w') as outfile:
         json.dump(scores, outfile)
     if (numGames-numTraining) > 0:
-        scores = [game.state.getScore() for game in games]
-        wins = [game.state.isWin() for game in games]
+        scores = [game.state.getScore() for game in games[numTraining:]]
+        wins = [game.state.isWin() for game in games[numTraining:]]
         winRate = wins.count(True) / float(len(wins))
         print('Average Score:', sum(scores) / float(len(scores)))
         print('Scores:       ', ', '.join([str(score) for score in scores]))
@@ -750,7 +730,6 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
               (wins.count(True), len(wins), winRate))
         print('Record:       ', ', '.join(
             [['Loss', 'Win'][int(w)] for w in wins]))
-
     return games
 
 

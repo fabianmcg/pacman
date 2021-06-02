@@ -65,7 +65,6 @@ def sleep(secs):
 def begin_graphics(width=640, height=480, color=formatColor(0, 0, 0), title=None, videoName = None):
 
     global _root_window, _canvas, _canvas_x, _canvas_y, _canvas_xs, _canvas_ys, _bg_color, _videoName
-    
     _videoName = videoName
 
     # Check for duplicate call
@@ -162,7 +161,7 @@ def _destroy_window(event=None):
 
 
 def end_graphics():
-    global _root_window, _canvas, _mouse_enabled, _video, _video_name
+    global _root_window, _canvas, _mouse_enabled, _video, _videoName
     try:
         try:
             if _video != None:
@@ -179,7 +178,7 @@ def end_graphics():
         _mouse_enabled = 0
         _clear_keys()
         _video = None
-        _video_name = None
+        _videoName = None
 
 
 def clear_screen(background=None):
@@ -437,12 +436,12 @@ def writePostscript(filename):
 
 
 def updateVideo():
-    global _video
     if _videoName == None:
         return
     import cv2
     from PIL import Image
     import numpy as np
+    global _video
     if _video == None:
         ps = _canvas.postscript(colormode='color', pageheight=480, pagewidth=640)
         img = Image.open(io.BytesIO(ps.encode('utf-8')))
