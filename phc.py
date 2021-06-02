@@ -46,7 +46,7 @@ class PHCAgent(Agent):
 
     def getAction(self, gameState):
         actions = gameState.getLegalActions()
-        serializedState = tuple(gameStateVector(gameState))
+        serializedState = tuple(gameStateVectorPacked(gameState))
         Q, Pi = self.accessQPi(serializedState, len(actions))
         action = self.random.choice(actions, p=Pi)
         if self.previousState != None:
