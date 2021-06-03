@@ -6,7 +6,7 @@ from game import Agent
 from agentUtil import *
 
 class PHCAgent(Agent):
-    def __init__(self, alpha = 0.5, gamma = 0.75, delta = 0.5, numTraining = 0, **kwargs):
+    def __init__(self, alpha = 0.25, gamma = 0.75, delta = 0.75, numTraining = 0, **kwargs):
         self.it = 0
         self.index = 0
         self.gamma = float(gamma)
@@ -19,38 +19,44 @@ class PHCAgent(Agent):
         self.rewards = Rewards(**kwargs)
         self.previousState = None
     
+    def registerInitialState(self, gameState):
+        self.rewards.initial(gameState)
+    
     def final(self, state):
         self.learn(self.previousState.state, state)
         self.previousState = None
         self.rewards.reset()
         self.it += 1
 
-    def accessQPi(self, state, numActions):
-        if state in self.Q :
-            return self.Q[state], self.Pi[state]
+    def accessPiAndInitAll(self, state, numActions):
+        if state in self.Pi:
+            return self.Pi[state]
         else:
             Q = self.Q[state] = np.full(numActions, 0.)
             Pi = self.Pi[state] = np.full(numActions, 1. / numActions)
-            return Q, Pi
+            return Pi
     
     def learn(self, state, gameState):
-        Q = self.Q[self.previousState.state]
-        Pi = self.Pi[self.previousState.state]
+        prevState = self.previousState.state
+        prevAction = self.previousState.action
+        prevNumActions = self.previousState.numActions
+        Q = self.Q[prevState]
+        Pi = self.Pi[prevState]
         reward = self.rewards(gameState)
         if state in self.Q:
             reward += self.gamma * np.amax(self.Q[state])
-        Q[self.previousState.action] = (1 - self.alpha) * Q[self.previousState.action] + self.alpha * reward
-        Pi[self.previousState.action] += self.delta if  self.previousState.action == np.argmax(Q) else -self.delta / (self.previousState.numActions - 1)
-        Pi = np.maximum(Pi, np.full(self.previousState.numActions, 0.))
-        self.Pi[self.previousState.state] = Pi / np.sum(Pi)
+        Q[prevAction] = (1 - self.alpha) * Q[prevAction] + self.alpha * reward
+        Pi[prevAction] += self.delta if  prevAction == np.argmax(Q) else -self.delta / (prevNumActions - 1)
+        Pi = np.maximum(Pi, np.full(prevNumActions, 0.))
+        self.Pi[prevState] = Pi / np.sum(Pi)
 
     def getAction(self, gameState):
         actions = gameState.getLegalActions()
-        serializedState = tuple(gameStateVectorPacked(gameState))
-        Q, Pi = self.accessQPi(serializedState, len(actions))
-        action = self.random.choice(actions, p=Pi)
+        serializedState = tuple(gameStateVector(gameState))
         if self.previousState != None:
             self.learn(serializedState, gameState)
+        Pi = self.accessPiAndInitAll(serializedState, len(actions))
+        action = self.random.choice(actions, p=Pi)
         self.previousState = QState(serializedState, actions.index(action), len(actions))
         return action
  

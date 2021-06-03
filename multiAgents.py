@@ -86,3 +86,5 @@ def scoreEvaluationFunction(currentGameState):
     return currentGameState.getScore()
 
 from phc import PHCAgent
+from wphc import WPHCAgent
+from dqn import DQNAgent
