@@ -402,7 +402,7 @@ class GhostRules:
     """
     These functions dictate how ghosts interact with their environment.
     """
-    GHOST_SPEED = 1.0
+    GHOST_SPEED = 1
 
     def getLegalActions(state, ghostIndex):
         """
@@ -687,7 +687,8 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
 
     rules = ClassicGameRules(timeout)
     games = []
-
+    startTime = time.perf_counter()
+    printTimer = 0
     for i in range(numGames):
         beQuiet = i < numTraining
         if beQuiet:
@@ -698,14 +699,20 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         else:
             gameDisplay = display
             rules.quiet = False
+            printTimer += 1
         game = rules.newGame(layout, pacman, ghosts,
                              gameDisplay, beQuiet, catchExceptions)
+
+        if printTimer == 1 and numTraining > 0:
+            stopTime = time.perf_counter()
+            print("Training time: {:.2f}".format(stopTime - startTime))
+            print("Average game time: {:.2f}".format((stopTime - startTime) / numTraining))
+
         game.run()
-        # if not beQuiet:
-        games.append(game)
+        if not beQuiet:
+            games.append(game)
 
         if record and not beQuiet:
-            import time
             import pickle
             file = ('recorded-game-%d' % (i + 1)) + \
                 '-'.join([str(t) for t in time.localtime()[1:6]])
@@ -715,15 +722,16 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
             components = {'layout': layout, 'actions': game.moveHistory}
             pickle.dump(components, f)
             f.close()
-
+    stopTime = time.perf_counter()
+    print("Total elapsed time: {:.2f}".format(stopTime - startTime))
     scores = {"scores" : [game.state.getScore() for game in games], "wins" : [game.state.isWin() for game in games],
                 "nt" : numTraining, "ng" : numGames}
     with open(scorePath, 'w') as outfile:
         json.dump(scores, outfile)
     if (numGames-numTraining) > 0:
-        scores = [game.state.getScore() for game in games[numTraining:]]
-        wins = [game.state.isWin() for game in games[numTraining:]]
-        winRate = wins.count(True) / float(len(wins))
+        scores = [game.state.getScore() for game in games]
+        wins = [game.state.isWin() for game in games]
+        winRate = wins.count(True) / float(len(scores))
         print('Average Score:', sum(scores) / float(len(scores)))
         print('Scores:       ', ', '.join([str(score) for score in scores]))
         print('Win Rate:      %d/%d (%.2f)' %
