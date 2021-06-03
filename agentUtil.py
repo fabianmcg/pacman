@@ -17,10 +17,7 @@ DIR2CODE = {
 def getActions(gameState):
     actions = gameState.getLegalActions()
     return actions, [DIR2CODE[a] for a in actions]
-
-def sumToN(n):
-    return int((n * (n + 1)) / 2)
-
+    
 def sumSumToN(n):
     return int((n * (n + 1) * (n + 2)) / 6)
 
@@ -73,9 +70,22 @@ def gameStateMatrix(gameState):
         ghosts[(x, y)].add((ghost.scaredTimer > 0) * 4 + DIR2CODE[ghost.getDirection()])
     for x, y in ghosts:
         grid[x, y] += (1 + ghostIndex(*list(ghosts[(x, y)]))) * 5
-    return grid[1:-1, 1:-1] / 355.
+    grid = grid[1:-1, 1:-1] / 355.
+    return grid[..., np.newaxis]
 
-gameStateTensor = gameStateMatrix
+def gameStateMatrix2(gameState):
+    walls = np.array(gameState.getWalls().data, dtype=np.int16)
+    food = np.array(gameState.getFood().data, dtype=np.int16)
+    grid = 2 * food + walls
+    for capsule in gameState.data.capsules:
+        grid[getPositionTuple(capsule)] = 3
+    grid[getPositionTuple(gameState.getPacmanPosition())] = 4
+    for ghost in gameState.getGhostStates():
+        grid[getPositionTuple(ghost.getPosition())] += (1 + (ghost.scaredTimer > 0)) * 5
+    grid = grid[1:-1, 1:-1] / 10.
+    return grid[..., np.newaxis]
+
+gameStateTensor = gameStateMatrix2
 
 def gameStateVectorTuple(gameState):
     food = gameState.getFood().packBits()
@@ -101,25 +111,28 @@ class Rewards:
     def initial(self, gameState):
         self.food = gameState.getNumFood()
         self.capsules = len(gameState.getCapsules())
-
-    # def reward(self, gameState):
-    #     food = gameState.getNumFood()
-    #     capsules = len(gameState.getCapsules())
-    #     nearestGhost = min([manhattanDistance(gameState.getPacmanPosition(), ghost.getPosition()) for ghost in gameState.getGhostStates()])
-    #     score = 1000. * gameState.isWin() - 1000. * gameState.isLose() + 20 * (self.food != food) - (nearestGhost < 3) * 5 - 1 + 100 * (self.capsules != capsules)
-    #     self.score = score
-    #     self.food = food
-    #     self.capsules = capsules
-    #     return score
+        self.score = 0
 
     def reward(self, gameState):
-        score = gameState.getScore() - self.score
-        self.score = gameState.getScore()
-        return score
+        pacmanPosition = gameState.getPacmanPosition()
+        food = gameState.getNumFood()
+        capsules = len(gameState.getCapsules())
+        nearestGhost = min([manhattanDistance(pacmanPosition, ghost.getPosition()) for ghost in gameState.getGhostStates()])
+        score = 500. * gameState.isWin() - 500. * gameState.isLose() + 20 * (self.food != food) - (nearestGhost < 3) * 5 - 1 + 100 * (self.capsules != capsules)
+        self.score = score
+        self.food = food
+        self.capsules = capsules
+        return score / 500.
+
+    # def reward(self, gameState):
+    #     score = gameState.getScore() - self.score
+    #     self.score = gameState.getScore()
+    #     return score / 500.
         
     def reset(self):
         self.score = 0
         self.food = 0
+        self.capsules = 0
     
     def __call__(self, state):
         return self.reward(state)
