@@ -689,6 +689,7 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
     games = []
     startTime = time.perf_counter()
     printTimer = 0
+    scores = []
     for i in range(numGames):
         beQuiet = i < numTraining
         if beQuiet:
@@ -711,6 +712,9 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         game.run()
         if not beQuiet:
             games.append(game)
+        scores.append((game.state.getScore(), game.state.isWin()))
+        if game.state.isWin():
+            print("Pacman won: {}, score: {}".format(i, game.state.getScore()))
 
         if record and not beQuiet:
             import pickle
@@ -724,7 +728,7 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
             f.close()
     stopTime = time.perf_counter()
     print("Total elapsed time: {:.2f}".format(stopTime - startTime))
-    scores = {"scores" : [game.state.getScore() for game in games], "wins" : [game.state.isWin() for game in games],
+    scores = {"scores" : [game[0] for game in scores], "wins" : [game[1] for game in scores],
                 "nt" : numTraining, "ng" : numGames}
     with open(scorePath, 'w') as outfile:
         json.dump(scores, outfile)
