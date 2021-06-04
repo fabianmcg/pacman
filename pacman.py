@@ -704,17 +704,10 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         game = rules.newGame(layout, pacman, ghosts,
                              gameDisplay, beQuiet, catchExceptions)
 
-        if printTimer == 1 and numTraining > 0:
-            stopTime = time.perf_counter()
-            print("Training time: {:.2f}".format(stopTime - startTime))
-            print("Average game time: {:.2f}".format((stopTime - startTime) / numTraining))
-
         game.run()
         if not beQuiet:
             games.append(game)
         scores.append((game.state.getScore(), game.state.isWin()))
-        if game.state.isWin():
-            print("Pacman won: {}, score: {}".format(i, game.state.getScore()))
 
         if record and not beQuiet:
             import pickle
@@ -726,6 +719,7 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
             components = {'layout': layout, 'actions': game.moveHistory}
             pickle.dump(components, f)
             f.close()
+            
     stopTime = time.perf_counter()
     print("Total elapsed time: {:.2f}".format(stopTime - startTime))
     scores = {"scores" : [game[0] for game in scores], "wins" : [game[1] for game in scores],
