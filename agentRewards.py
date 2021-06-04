@@ -26,7 +26,7 @@ class Rewards:
     def reward(self, gameState):
         score = gameState.getScore() - self.score
         self.score = gameState.getScore()
-        return score / 501.0
+        return score / 10.0
 
     def __call__(self, state):
         return self.reward(state)

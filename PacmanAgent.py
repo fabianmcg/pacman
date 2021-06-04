@@ -8,6 +8,14 @@ import time
 import math
 import numpy as np
 
+class PacmanState:
+    def __init__(self, state, action, reward, isTerminal, validActions = None):
+        self.state = state
+        self.action = action
+        self.reward = reward
+        self.isTerminal = isTerminal
+        self.validActions = validActions
+
 class PacmanAgent(Agent):
     def __init__(
         self,
@@ -21,7 +29,6 @@ class PacmanAgent(Agent):
         self.metrics = {"meanScore": 0, "maxScore": -math.inf, "wins": 0, "totalActions": 0, "meanGameTime": 0, "totalTime": 0}
         self.actionIt = 0
         self.episodeIt = 0
-        self.experienceIt = 0
         self.epsilon = float(epsilon)
         self.finalEpsilon = float(finalEpsilon)
         self.printSteps = int(printSteps)
@@ -33,11 +40,15 @@ class PacmanAgent(Agent):
         self.startTime = None
         self.startGameTime = None
         self.stopTrainingTime = time.perf_counter()
+        self.previousState = None
 
     def agentInit(self, gameState):
         pass
 
-    def terminalState(self, gameState):
+    def beginGame(self, gameState):
+        pass
+
+    def endGame(self, gameState):
         pass
 
     def selectAction(self, gameState, actions, actionsIndexes):
@@ -45,7 +56,7 @@ class PacmanAgent(Agent):
 
     def print(self, force=False):
         if force or (self.printSteps > 0 and (self.episodeIt % self.printSteps) == 0):
-            its = self.episodeIt if self.episodeIt < self.numTraining else self.episodeIt - self.numTraining
+            its = self.episodeIt if self.episodeIt < self.numTraining else (self.episodeIt - self.numTraining)
             its = 1 if its == 0 else its
             print(
                 "Episode: {}\n\t{: <20}{}\n\t{: <20}{:0.2f}\n\t{: <20}{}\n\t{: <20}{}\n\t{: <20}{}\n\t{: <20}{:0.2f}\n\t{: <20}{:0.2f}\n\t{: <20}{:0.2f}\n\t{: <20}{:0.2f}".format(
@@ -72,6 +83,7 @@ class PacmanAgent(Agent):
         self.metrics["wins"] += gameState.isWin()
 
     def registerInitialState(self, gameState):
+        self.actionIt = 0
         self.rewards.initial(gameState)
         if self.episodeIt == 0:
             self.agentInit(gameState)
@@ -83,19 +95,20 @@ class PacmanAgent(Agent):
             self.metrics["totalActions"] = 0
             self.metrics["wins"] = 0
         self.startGameTime = time.perf_counter()
-        self.actionIt = 0
+        self.beginGame(gameState)
 
     def final(self, gameState):
-        self.terminalState(gameState)
+        self.endGame(gameState)
+        self.previousState = None
         if self.episodeIt < self.numTraining:
             self.epsilon -= self.epsilonStep
             self.epsilonArray = [self.epsilon, 1 - self.epsilon]
-        self.episodeIt += 1
         self.collectMetrics(gameState)
         if self.episodeIt == self.numTraining:
             self.print(True)
         else:
             self.print()
+        self.episodeIt += 1
 
     def getAction(self, gameState):
         actions, actionsIndexes = getActions(gameState)
