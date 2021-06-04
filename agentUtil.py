@@ -7,7 +7,7 @@ from game import Directions
 from util import manhattanDistance
 
 DIR2CODE = {Directions.STOP: 0, Directions.EAST: 1, Directions.NORTH: 2, Directions.WEST: 3, Directions.SOUTH: 4}
-
+DIRECTIONS = [Directions.STOP, Directions.EAST, Directions.NORTH, Directions.WEST, Directions.SOUTH]
 
 def getActions(gameState):
     actions = gameState.getLegalActions()
@@ -113,9 +113,3 @@ def gameStateVectorFromMatrix(gameState):
 gameStateVector = gameStateVectorTuple
 
 
-class QState:
-    def __init__(self, state, action, numActions=0, validActions=None):
-        self.state = state
-        self.action = action
-        self.numActions = numActions
-        self.validActions = validActions

@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import enum
 from imp import init_builtin
 from operator import le
+import re
 import numpy as np
 from tensorflow.python.keras.backend import update
+from tensorflow.python.ops.gen_math_ops import select
+from PacmanAgent import PacmanAgent, PacmanState
 from game import Agent
 from agentUtil import *
 import tensorflow as tf
@@ -39,7 +43,7 @@ def convolutionalNetwork(
 class DQNNetwork:
     def __init__(
         self,
-        C=4,
+        C=10,
         learningRate=0.005,
         **kwargs,
     ):
@@ -49,14 +53,14 @@ class DQNNetwork:
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = (10, 5)
-        self.convolutionalArchitecture = [(16, 2, 4), (8, 2, 2)]
+        self.architecture = (32, 16, 5)
+        self.convolutionalArchitecture = [(32, 2, 4)]
 
     def __str__(self) -> str:
         return str("{:0.6f}".format(self.fitHistory.history["loss"][0]))
 
     def __call__(self, x):
-        return self.QNetwork(x)
+        return self.QNetwork(x).numpy()
 
     def initNetworks(self, stateShape):
         tf.device("/gpu:0")
@@ -82,70 +86,68 @@ class DQNNetwork:
         self.updateNetworks()
 
     def inferQ(self, x):
-        return self.QNetwork(x)
+        return self.QNetwork(x).numpy()
 
     def inferQQ(self, x):
-        return self.QQNetwork(x)
+        return self.QQNetwork(x).numpy()
 
 
-class DQNState:
-    def __init__(self, state, action):
+class DQNHistory:
+    def __init__(self, size, K, state):
+        self.size = size
+        self.K = K
+        self.stack = [state for k in range(size)]
+
+    def update(self, state):
+        self.stack.pop(0)
+        self.stack.append(state)
+
+    def phi(self):
+        return np.concatenate(tuple([state for state in self.stack[-self.K :]]), axis=2)
+
+    def phiNext(self, nextState):
+        sequence = self.stack[-(self.K - 1) :]
+        sequence.append(nextState)
+        return np.concatenate(tuple([state for state in sequence]), axis=2)
+
+
+class DQNTransition:
+    def __init__(self, state, action, nextState, reward, isTerminal, validActions):
         self.state = state
         self.action = action
-        self.outcomeState = None
-        self.outcomeReward = None
-        self.outcomeAction = None
-        self.isTerminalOutcome = None
-
-    def setOutcome(self, state, actions, gameState, rewards):
-        self.outcomeState = state
-        self.outcomeActions = actions
-        self.outcomeReward = rewards(gameState)
-        self.isTerminalOutcome = gameState.isWin() or gameState.isLose()
+        self.nextState = nextState
+        self.reward = reward
+        self.isTerminal = isTerminal
+        self.validActions = validActions
 
 
-class DQNAgent(Agent):
+class DQNAgent(PacmanAgent):
     def __init__(
         self,
         K=4,
         gamma=0.99,
-        epsilon=1.0,
         minibatchSize=32,
         experienceSize=500,
-        finalEpsilon=0.1,
-        numTraining=0,
-        printSteps=5,
         **kwargs,
     ):
-        self.index = 0
-        self.metrics = {"meanGameScore": 0, "maxScore": 0}
-        self.actionIt = 0
-        self.episodeIt = 0
+        super().__init__(**kwargs)
         self.experienceIt = 0
-        self.previousState = None
         self.K = int(K)
         self.gamma = float(gamma)
-        self.epsilon = float(epsilon)
         self.minibatchSize = int(minibatchSize)
-        self.finalEpsilon = float(finalEpsilon)
-        self.printSteps = int(printSteps)
-        self.numTraining = int(numTraining)
         self.experienceSize = int(experienceSize)
         self.experienceReplay = [None] * int(experienceSize)
-        self.rewards = Rewards(**kwargs)
         self.network = DQNNetwork(**kwargs)
-        self.random = np.random.default_rng(int(kwargs["seed"])) if "seed" in kwargs else np.random.default_rng(12345)
-        self.epsilonStep = (self.epsilon - self.finalEpsilon) / (self.numTraining if self.numTraining > 0 else 1)
-        self.epsilonArray = [self.epsilon, 1 - self.epsilon]
+        self.gameHistory = None
 
-    def registerInitialState(self, gameState):
-        self.rewards.initial(gameState)
-        if self.episodeIt == 0:
-            print("Creating net")
-            stateShape = gameStateTensor(gameState).shape
-            stateShape[2] = self.K
-            self.network.initNetworks(stateShape)
-        self.actionIt = 0
+    def agentInit(self, gameState):
+        state = gameStateTensor(gameState)
+        stateShape = state.shape
+        self.network.initNetworks((stateShape[0], stateShape[1], self.K))
+
+    def updateExperience(self, state):
+        self.experienceReplay[self.experienceIt % self.experienceSize] = state
+        self.experienceIt += 1
 
     def selectMiniBatch(self):
         size = self.experienceIt if self.experienceIt < self.experienceSize else self.experienceSize
@@ -153,62 +155,54 @@ class DQNAgent(Agent):
         miniBatchIndexes = self.random.choice(size, size=minibatchSize, replace=False)
         return miniBatchIndexes
 
-    def updateExperience(self, state):
-        self.experienceReplay[self.experienceIt % self.experienceSize] = state
-        self.experienceIt += 1
-
-    def final(self, gameState):
-        state = gameStateTensor(gameState)
-        if self.previousState != None:
-            self.updateExperience(state, [0], gameState)
-            self.learn()
-            self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
-        
-        self.previousState = None
-        if self.episodeIt < self.numTraining:
-            self.epsilon -= self.epsilonStep
-        self.episodeIt += 1
-        
-
     def learn(self):
         miniBatchIndexes = self.selectMiniBatch()
-        miniBatchQ = np.array([self.experienceReplay[k].state for k in miniBatchIndexes])
-        miniBatchQQ = np.array([self.experienceReplay[k].outcomeState for k in miniBatchIndexes])
+        x = np.array([self.experienceReplay[k].state for k in miniBatchIndexes])
+        xx = np.array([self.experienceReplay[k].nextState for k in miniBatchIndexes])
         actions = np.array([self.experienceReplay[k].action for k in miniBatchIndexes])
-        rewards = np.array([self.experienceReplay[k].outcomeReward for k in miniBatchIndexes])
-        isTerminal = np.array([self.experienceReplay[k].isOutcomeTerminal for k in miniBatchIndexes])
-        QQ = self.QQNetwork(miniBatchQQ).numpy()
-        QQ = np.array([np.max(QQ[i, self.experienceReplay[k].outcomeActions]) for i, k in enumerate(miniBatchIndexes)])
-        y = self.gamma * QQ
-        y[isTerminal == True] = 0
-        y += rewards
-        Q = self.QNetwork(miniBatchQ).numpy()
-        Q[tuple(range(actions.size)), tuple(actions)] = y
-        self.meanLoss += self.QNetwork.fit(miniBatchQ, Q, verbose=0, steps_per_epoch=len(miniBatchIndexes)).history[
-            "loss"
-        ][0]
-        if (self.step % self.C) == 0:
-            self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
-        self.step += 1
+        rewards = np.array([self.experienceReplay[k].reward for k in miniBatchIndexes])
+        isTerminal = np.array([self.experienceReplay[k].isTerminal for k in miniBatchIndexes])
+        validActions = [self.experienceReplay[k].validActions for k in miniBatchIndexes]
+        y = self.network(x)
+        yy = self.network.inferQQ(xx)
+        yy = self.gamma * np.array([np.max(yy[i, actions]) for i, actions in enumerate(validActions)])
+        yy[isTerminal == True] = 0
+        yy += rewards
+        yy = np.clip(yy, -1, 1)
+        y[tuple(range(actions.size)), tuple(actions)] = yy
+        self.network.learn(x, y, len(miniBatchIndexes))
 
-    def getActionDQN(self, gameState):
+    def beginGame(self, gameState):
         state = gameStateTensor(gameState)
-        actions, actionsIndexes = getActions(gameState)
-        if self.previousState != None:
-            self.updateExperience(state, actionsIndexes, gameState)
-            self.learn()
-        randomAction = self.random.choice([True, False], p=self.epsilonArray)
-        if randomAction and (self.it < self.numTraining):
-            actionIndex = self.random.integers(0, len(actions))
-        else:
-            Q = self.QNetwork(np.array([state])).numpy()[0]
-            actionIndex = np.argmax(Q[actionsIndexes])
-        self.previousState = DQNState(state, actionsIndexes[actionIndex])
-        return actions[actionIndex]
+        self.gameHistory = DQNHistory(self.K + 2, self.K, state)
 
-    def getAction(self, gameState):
-        if (self.actionIt % self.K) == 0:
-            pass
-        actions, actionsIndexes = getActions(gameState)
-        self.actionIt += 1
-        return actions[actionIndex]
+    def endGame(self, gameState):
+        if self.episodeIt < self.numTraining:
+            state = gameStateTensor(gameState)
+            reward = self.rewards(gameState)
+            self.train(state, reward, True)
+        self.gameHistory = None
+
+    def train(self, state, reward, isTerminal, validActions = [0]):
+        previousState = self.previousState
+        if previousState != None:
+            phiState = self.gameHistory.phi()
+            phiNextState = self.gameHistory.phiNext(state)
+            transition = DQNTransition(phiState, previousState.action, phiNextState, reward, isTerminal, validActions)
+            self.updateExperience(transition)
+            self.learn()
+
+    def selectAction(self, gameState, actions, actionsIndexes):
+        state = gameStateTensor(gameState)
+        reward = self.rewards(gameState)
+        if self.episodeIt < self.numTraining:
+            self.train(state, reward, False, actionsIndexes)
+        self.gameHistory.update(state)
+        randomAction = self.random.choice([True, False], p=self.epsilonArray)
+        if randomAction and (self.episodeIt < self.numTraining):
+            action = actions[self.random.integers(0, len(actions))]
+        else:
+            Q = self.network(np.array([self.gameHistory.phi()]))[0]
+            action = DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]]
+        self.previousState = PacmanState(state, DIR2CODE[action], reward, False)
+        return action
