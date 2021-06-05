@@ -50,7 +50,7 @@ class DQNNetwork:
         self.QQNetwork = None
         self.fitHistory = None
         self.architecture = (256, 5) if arch == None else make_tuple(arch)
-        self.convolutionalArchitecture = [(64, 2, 4)] if convArch == None else make_tuple(convArch)
+        self.convolutionalArchitecture = [(16, 8, 4), (32, 4, 2), (32, 3, 1)] if convArch == None else make_tuple(convArch)
         self.optimizerName = optimizer
 
     def __str__(self) -> str:
@@ -72,6 +72,8 @@ class DQNNetwork:
             RandomUniform(minval=-0.05, maxval=0.05, seed=None),
             RandomUniform(minval=-0.0005, maxval=0.0005, seed=None),
         )
+        print("Input shape: {}".format(stateShape))
+        self.QNetwork.summary()
         self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
 
     def updateNetworks(self, force=False):
