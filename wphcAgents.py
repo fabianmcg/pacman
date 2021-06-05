@@ -4,7 +4,7 @@
 import numpy as np
 from game import Agent
 from agentUtil import *
-from phc import PHCAgent
+from phcAgents import PHCAgent
 
 
 class WPHCAgent(PHCAgent):
