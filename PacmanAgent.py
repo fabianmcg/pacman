@@ -20,7 +20,7 @@ class PacmanAgent(Agent):
     def __init__(
         self,
         epsilon=1.0,
-        printSteps=200,
+        printSteps=10,
         numTraining=0,
         finalTrainingEpsilon=0.1,
         finalEpsilon=0.005,
