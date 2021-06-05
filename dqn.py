@@ -37,7 +37,7 @@ class DQNNetwork:
     def __init__(
         self,
         C=1000,
-        learningRate=0.05,
+        learningRate=0.0005,
         arch = None,
         convArch = None,
         optimizer = 'RMSProp',
