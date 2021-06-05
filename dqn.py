@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import enum
-from imp import init_builtin
-from operator import le
-import re
 import numpy as np
-from tensorflow.python.keras.backend import update
-from tensorflow.python.ops.gen_math_ops import select
 from PacmanAgent import PacmanAgent, PacmanState
-from game import Agent
 from agentUtil import *
 import tensorflow as tf
 
@@ -183,7 +176,7 @@ class DQNAgent(PacmanAgent):
             self.train(state, reward, True)
         self.gameHistory = None
 
-    def train(self, state, reward, isTerminal, validActions = [0]):
+    def train(self, state, reward, isTerminal, validActions=[0]):
         previousState = self.previousState
         if previousState != None:
             phiState = self.gameHistory.phi()

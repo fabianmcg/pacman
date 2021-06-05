@@ -20,9 +20,10 @@ class PacmanAgent(Agent):
     def __init__(
         self,
         epsilon=1.0,
-        printSteps=5,
+        printSteps=200,
         numTraining=0,
-        finalEpsilon=0.1,
+        finalTrainingEpsilon=0.1,
+        finalEpsilon=0.005,
         **kwargs,
     ):
         self.index = 0
@@ -30,12 +31,13 @@ class PacmanAgent(Agent):
         self.actionIt = 0
         self.episodeIt = 0
         self.epsilon = float(epsilon)
+        self.finalTrainingEpsilon = float(finalTrainingEpsilon)
         self.finalEpsilon = float(finalEpsilon)
         self.printSteps = int(printSteps)
         self.numTraining = int(numTraining)
         self.rewards = Rewards(**kwargs)
         self.random = np.random.default_rng(int(kwargs["seed"])) if "seed" in kwargs else np.random.default_rng(12345)
-        self.epsilonStep = (self.epsilon - self.finalEpsilon) / (self.numTraining if self.numTraining > 0 else 1)
+        self.epsilonStep = (self.epsilon - self.finalTrainingEpsilon) / (self.numTraining if self.numTraining > 0 else 1)
         self.epsilonArray = [self.epsilon, 1 - self.epsilon]
         self.startTime = None
         self.startGameTime = None
@@ -94,6 +96,8 @@ class PacmanAgent(Agent):
             self.metrics["maxScore"] =  -math.inf
             self.metrics["totalActions"] = 0
             self.metrics["wins"] = 0
+            self.epsilon = self.finalEpsilon
+            self.epsilonArray = [self.epsilon, 1 - self.epsilon]
         self.startGameTime = time.perf_counter()
         self.beginGame(gameState)
 
