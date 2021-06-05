@@ -11,7 +11,7 @@ from collections import deque
 
 
 def convolutionalNetwork(
-    convolutionLayers, denseLayers, stateShape, optimizer, init=None, outInit=None, loss=tf.losses.MeanSquaredError()
+    convolutionLayers, denseLayers, stateShape, optimizer, loss=tf.losses.MeanSquaredError()
 ):
     from tensorflow.keras.layers import Dense, Flatten, Conv2D
 
@@ -22,22 +22,21 @@ def convolutionalNetwork(
             convolutionLayers[0][1],
             strides=convolutionLayers[0][2],
             activation=convolutionLayers[0][3],
-            kernel_initializer=init,
             input_shape=stateShape,
         )
     )
     for layer in convolutionLayers[1:]:
-        model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3], kernel_initializer=init))
+        model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3]))
     model.add(Flatten())
     for layer in denseLayers[0:-1]:
-        model.add(Dense(layer, activation="relu", kernel_initializer=init))
-    model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear", kernel_initializer=outInit))
+        model.add(Dense(layer, activation="relu"))
+    model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear"))
     model.compile(loss=loss, optimizer=optimizer, metrics=["mean_squared_error", "accuracy"])
     return model
 
 
 def recurrentConvolutionalNetwork(
-    convolutionLayers, denseLayers, stateShape, optimizer, init=None, outInit=None, loss=tf.losses.MeanSquaredError()
+    convolutionLayers, denseLayers, stateShape, optimizer, loss=tf.losses.MeanSquaredError()
 ):
     from tensorflow.keras.layers import Dense, Flatten, Conv2D, ConvLSTM2D
 
@@ -47,17 +46,16 @@ def recurrentConvolutionalNetwork(
             convolutionLayers[0][0],
             convolutionLayers[0][1],
             strides=convolutionLayers[0][2],
-            kernel_initializer=init,
             input_shape=stateShape,
         )
     )
     for layer in convolutionLayers[1:]:
-        model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3], kernel_initializer=init))
+        model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3]))
     model.add(Flatten())
     for layer in denseLayers[0:-1]:
-        model.add(Dense(layer, activation="relu", kernel_initializer=init))
-    model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear", kernel_initializer=outInit))
-    model.compile(loss=loss, optimizer=optimizer, metrics=["mean_squared_error", "accuracy"])
+        model.add(Dense(layer, activation="relu", init='he_uniform'))
+    model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear"))
+    model.compile(loss=loss, optimizer=optimizer, metrics=["accuracy"])
     return model
 
 
@@ -67,23 +65,24 @@ class DQNNetwork:
         numActions,
         recurrentNetwork,
         C=200,
-        learningRate=0.0005,
+        learningRate=0.00025,
         arch=None,
         convArch=None,
         optimizer="RMSProp",
         **kwargs,
     ):
-        self.recurrentNetwork = recurrentNetwork
-        self.C = int(C)
-        self.learningRate = float(learningRate)
         self.it = 0
+        self.C = int(C)
+        self.numActions = numActions
+        self.learningRate = float(learningRate)
+        self.recurrentNetwork = recurrentNetwork
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
         self.architecture = tuple([256]) if arch == None else literal_eval(arch)
         self.architecture = self.architecture + tuple([numActions])
         self.convolutionalArchitecture = (
-            [(16, 6, 2, "relu"), (32, 4, 2, "relu"), (32, 3, 1, "relu")] if convArch == None else literal_eval(convArch)
+            [(32, 4, 4, "relu"), (64, 4, 2, "relu")] if convArch == None else literal_eval(convArch)
         )
         self.optimizerName = optimizer
         self.inputShape = None
@@ -96,13 +95,12 @@ class DQNNetwork:
 
     def initNetworks(self, stateShape):
         tf.device("/gpu:0")
-        from tensorflow.keras.initializers import RandomUniform
         from tensorflow.keras.optimizers import Adam, RMSprop
 
         self.inputShape = stateShape
 
         optimizer = (
-            RMSprop(learning_rate=self.learningRate, rho=0.95, momentum=0.01)
+            RMSprop(learning_rate=self.learningRate)
             if self.optimizerName == "RMSProp"
             else Adam(learning_rate=self.learningRate)
         )
@@ -112,8 +110,6 @@ class DQNNetwork:
                 self.architecture,
                 stateShape,
                 optimizer,
-                RandomUniform(minval=-0.05, maxval=0.05, seed=None),
-                RandomUniform(minval=-0.05, maxval=0.05, seed=None),
             )
         else:
             self.QNetwork = convolutionalNetwork(
@@ -121,8 +117,6 @@ class DQNNetwork:
                 self.architecture,
                 stateShape,
                 optimizer,
-                RandomUniform(minval=-0.05, maxval=0.05, seed=None),
-                RandomUniform(minval=-0.05, maxval=0.05, seed=None),
             )
         self.QNetwork.summary()
         self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
@@ -146,8 +140,8 @@ class DQNNetwork:
         import json
 
         return {
-            "arch": self.architecture,
-            "convArch": self.convolutionalArchitecture,
+            "architecture": self.architecture,
+            "convolutionalArchitecture": self.convolutionalArchitecture,
             "learningRate": self.learningRate,
             "C": self.C,
             "inputShape": self.inputShape,
@@ -201,7 +195,7 @@ class DQNAgent(PacmanAgent):
     def __init__(
         self,
         K=4,
-        alpha=0.7,
+        alpha=0.2,
         gamma=0.99,
         minibatchSize=32,
         experienceSize=100000,
@@ -211,6 +205,7 @@ class DQNAgent(PacmanAgent):
         recurrent=None,
         fullQ=None,
         trainEvery=1,
+        initialGames=5,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -227,8 +222,10 @@ class DQNAgent(PacmanAgent):
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
         self.fullQ = False if fullQ == None else literal_eval(fullQ)
         self.trainEvery = int(trainEvery)
+        self.numActions = (4 if self.noStop else 5)
+        self.initialGames = int(initialGames)
         self.network = DQNNetwork(
-            numActions=(4 if self.noStop else 5), recurrentNetwork=self.recurrentNetwork, **kwargs
+            numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, **kwargs
         )
         self.gameHistory = None
         self.parameters.update(
@@ -241,6 +238,7 @@ class DQNAgent(PacmanAgent):
                 "clipValues": self.clipValues,
                 "experience": 0,
                 "noStop": self.noStop,
+                "numAction": self.numActions,
             }
         )
 
@@ -274,14 +272,14 @@ class DQNAgent(PacmanAgent):
         actions = np.array([self.experienceReplay[k].action for k in miniBatchIndexes])
         rewards = np.array([self.experienceReplay[k].reward for k in miniBatchIndexes])
         isTerminal = np.array([self.experienceReplay[k].isTerminal for k in miniBatchIndexes])
-        y = self.network(x)
+        y = self.network.inferQ(x)
         yy = self.network.inferQQ(xx)
         if self.subselectScheme:
             validActions = [self.experienceReplay[k].validActions for k in miniBatchIndexes]
             yy = self.gamma * np.array([np.max(yy[i, actions]) for i, actions in enumerate(validActions)])
         else:
             yy = self.gamma * np.max(yy, axis=1)
-        yy[isTerminal == True] = 0
+        yy[isTerminal == True] = 0.
         yy += rewards
         if self.fullQ:
             yy = y[tuple(range(actions.size)), tuple(actions)] * (1 - self.alpha) + self.alpha * yy
@@ -292,26 +290,27 @@ class DQNAgent(PacmanAgent):
 
     def beginGame(self, gameState):
         state = gameStateTensor(gameState)
-        self.gameHistory = DQNHistory(self.K + 2, self.K, self.recurrentNetwork, state)
+        self.gameHistory = DQNHistory(self.K * 2, self.K, self.recurrentNetwork, state)
 
     def endGame(self, gameState):
         if self.episodeIt < self.numTraining:
             state = gameStateTensor(gameState)
             reward = self.rewards(gameState)
             if (self.episodeIt + 1) == self.numTraining:
-                self.train(state, reward, True, [0], True)
+                self.updateModel(state, reward, True, [0], True)
             else:
-                self.train(state, reward, True)
+                self.updateModel(state, reward, True)
         self.gameHistory = None
 
-    def train(self, state, reward, isTerminal, validActions=[0], force=False):
+    def updateModel(self, state, reward, isTerminal, validActions=[0], force=False):
         previousState = self.previousState
-        if previousState != None and (force or ((self.network.it % self.trainEvery) == 0)):
+        if previousState != None:
             phiState = self.gameHistory.phi()
             phiNextState = self.gameHistory.phiNext(state)
             transition = DQNTransition(phiState, previousState.action, phiNextState, reward, isTerminal, validActions)
             self.updateExperience(transition)
-            self.learn()
+            if (self.initialGames <= self.episodeIt) and (force or ((self.network.it % self.trainEvery) == 0)):
+                self.learn()
 
     def selectAction(self, gameState, actions, actionsIndexes):
         if self.noStop:
@@ -320,18 +319,19 @@ class DQNAgent(PacmanAgent):
         state = gameStateTensor(gameState)
         reward = self.rewards(gameState)
         if self.episodeIt < self.numTraining:
-            self.train(state, reward, False, actionsIndexes)
+            self.updateModel(state, reward, False, actionsIndexes)
         self.gameHistory.update(state)
         randomAction = self.random.choice([True, False], p=self.epsilonArray)
         if randomAction and (self.epsilon > 0.0):
             action = actions[self.random.integers(0, len(actions))]
         else:
             Q = self.network(np.array([self.gameHistory.phi()]))[0]
-            action = (
-                DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]]
-                if self.subselectScheme
-                else DIRECTIONS[np.argmax(Q)]
-            )
+            # action = (
+            #     DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]]
+            #     if self.subselectScheme
+            #     else DIRECTIONS[np.argmax(Q)]
+            # )
+            action = DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]]
         self.previousState = PacmanState(state, DIR2CODE[action], reward, False)
         if action not in actions:
             action = Directions.STOP
