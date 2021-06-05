@@ -18,15 +18,13 @@ class Rewards:
         pacmanPosition = gameState.getPacmanPosition()
         food = gameState.getNumFood()
         capsules = len(gameState.getCapsules())
-        nearestGhost = min(
-            [manhattanDistance(pacmanPosition, ghost.getPosition()) for ghost in gameState.getGhostStates()]
-        )
+        # nearestGhost = min(
+        #     [manhattanDistance(pacmanPosition, ghost.getPosition()) for ghost in gameState.getGhostStates()]
+        # )
         score = (
             256.0 * gameState.isWin()
-            - 256.0 * gameState.isLose()
-            + 16 * (self.food != food)
-            - (nearestGhost < 2) * 4
-            - 1
+            - 512.0 * gameState.isLose()
+            + 16. * (self.food != food)
             + 64 * (self.capsules != capsules)
         )
         self.score += score

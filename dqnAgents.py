@@ -6,7 +6,7 @@ from tensorflow.python.eager.backprop_util import IsTrainable
 from PacmanAgent import PacmanAgent, PacmanState
 from agentUtil import *
 import tensorflow as tf
-from ast import literal_eval as make_tuple
+from ast import literal_eval
 from collections import deque
 
 
@@ -15,7 +15,7 @@ def convolutionalNetwork(
 ):
     from tensorflow.keras.layers import Dense, Flatten, Conv2D
 
-    model = tf.keras.Sequential()
+    model = tf.keras.Sequential(name="DQN")
     model.add(
         Conv2D(
             convolutionLayers[0][0],
@@ -36,10 +36,36 @@ def convolutionalNetwork(
     return model
 
 
+def recurrentConvolutionalNetwork(
+    convolutionLayers, denseLayers, stateShape, optimizer, init=None, outInit=None, loss=tf.losses.MeanSquaredError()
+):
+    from tensorflow.keras.layers import Dense, Flatten, Conv2D, ConvLSTM2D
+
+    model = tf.keras.Sequential(name="DQN")
+    model.add(
+        ConvLSTM2D(
+            convolutionLayers[0][0],
+            convolutionLayers[0][1],
+            strides=convolutionLayers[0][2],
+            kernel_initializer=init,
+            input_shape=stateShape,
+        )
+    )
+    for layer in convolutionLayers[1:]:
+        model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3], kernel_initializer=init))
+    model.add(Flatten())
+    for layer in denseLayers[0:-1]:
+        model.add(Dense(layer, activation="relu", kernel_initializer=init))
+    model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear", kernel_initializer=outInit))
+    model.compile(loss=loss, optimizer=optimizer, metrics=["mean_squared_error", "accuracy"])
+    return model
+
+
 class DQNNetwork:
     def __init__(
         self,
         numActions,
+        recurrentNetwork,
         C=200,
         learningRate=0.00025,
         arch=None,
@@ -47,16 +73,17 @@ class DQNNetwork:
         optimizer="RMSProp",
         **kwargs,
     ):
+        self.recurrentNetwork = recurrentNetwork
         self.C = int(C)
         self.learningRate = float(learningRate)
         self.it = 0
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = tuple([128]) if arch == None else make_tuple(arch)
+        self.architecture = tuple([128]) if arch == None else literal_eval(arch)
         self.architecture = self.architecture + tuple([numActions])
         self.convolutionalArchitecture = (
-            [(16, 6, 2, "relu"), (32, 4, 2, "relu")] if convArch == None else make_tuple(convArch)
+            [(16, 6, 2, "relu"), (32, 4, 2, "relu")] if convArch == None else literal_eval(convArch)
         )
         self.optimizerName = optimizer
         self.inputShape = None
@@ -65,7 +92,7 @@ class DQNNetwork:
         return str("{:0.6f}".format(self.fitHistory.history["loss"][0]))
 
     def __call__(self, x):
-        return self.QNetwork(x).numpy()
+        return self.QNetwork.predict(x)
 
     def initNetworks(self, stateShape):
         tf.device("/gpu:0")
@@ -79,15 +106,24 @@ class DQNNetwork:
             if self.optimizerName == "RMSProp"
             else Adam(learning_rate=self.learningRate)
         )
-        self.QNetwork = convolutionalNetwork(
-            self.convolutionalArchitecture,
-            self.architecture,
-            stateShape,
-            optimizer,
-            RandomUniform(minval=-0.05, maxval=0.05, seed=None),
-            RandomUniform(minval=-0.05, maxval=0.05, seed=None),
-        )
-        print("Input shape: {}".format(stateShape))
+        if self.recurrentNetwork:
+            self.QNetwork = recurrentConvolutionalNetwork(
+                self.convolutionalArchitecture,
+                self.architecture,
+                stateShape,
+                optimizer,
+                RandomUniform(minval=-0.05, maxval=0.05, seed=None),
+                RandomUniform(minval=-0.05, maxval=0.05, seed=None),
+            )
+        else:
+            self.QNetwork = convolutionalNetwork(
+                self.convolutionalArchitecture,
+                self.architecture,
+                stateShape,
+                optimizer,
+                RandomUniform(minval=-0.05, maxval=0.05, seed=None),
+                RandomUniform(minval=-0.05, maxval=0.05, seed=None),
+            )
         self.QNetwork.summary()
         self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
 
@@ -101,10 +137,10 @@ class DQNNetwork:
         self.updateNetworks()
 
     def inferQ(self, x):
-        return self.QNetwork(x).numpy()
+        return self.QNetwork.predict(x)
 
     def inferQQ(self, x):
-        return self.QQNetwork(x).numpy()
+        return self.QQNetwork.predict(x)
 
     def toJson(self):
         import json
@@ -116,15 +152,17 @@ class DQNNetwork:
             "C": self.C,
             "inputShape": self.inputShape,
             "optimizerName": self.optimizerName,
+            "recurrentNetwork": self.recurrentNetwork,
             "network": json.loads(self.QNetwork.to_json()),
         }
 
 
 class DQNHistory:
-    def __init__(self, size, K, state):
+    def __init__(self, size, K, recurrent, state):
         self.size = size
         self.K = K
         self.stack = deque([state for k in range(size)])
+        self.recurrentOrder = recurrent
 
     def update(self, state):
         self.stack.popleft()
@@ -134,6 +172,8 @@ class DQNHistory:
         if (self.K - 1) == 0:
             return self.stack[-1]
         stack = list(self.stack)
+        if self.recurrentOrder:
+            return np.array([state for state in stack[-self.K :]])
         return np.concatenate(tuple([state for state in stack[-self.K :]]), axis=2)
 
     def phiNext(self, nextState):
@@ -142,6 +182,8 @@ class DQNHistory:
         stack = list(self.stack)
         sequence = stack[-(self.K - 1) :]
         sequence.append(nextState)
+        if self.recurrentOrder:
+            return np.array([state for state in sequence])
         return np.concatenate(tuple([state for state in sequence]), axis=2)
 
 
@@ -159,26 +201,36 @@ class DQNAgent(PacmanAgent):
     def __init__(
         self,
         K=4,
+        alpha=0.7,
         gamma=0.99,
         minibatchSize=32,
         experienceSize=100000,
-        subselectScheme=False,
-        clipValues=False,
-        noStop=True,
+        subselectScheme=None,
+        clipValues=None,
+        noStop=None,
+        recurrent=None,
+        fullQ=None,
+        trainEvery=1,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.experienceIt = 0
         self.K = int(K)
+        self.alpha = float(alpha)
         self.gamma = float(gamma)
         self.minibatchSize = int(minibatchSize)
         self.experienceSize = int(experienceSize)
         self.experienceReplay = [None] * int(experienceSize)
-        self.noStop = bool(noStop)
-        self.network = DQNNetwork(numActions=(4 if self.noStop else 5), **kwargs)
+        self.noStop = True if noStop == None else literal_eval(noStop)
+        self.recurrentNetwork = False if recurrent == None else literal_eval(recurrent)
+        self.subselectScheme = True if subselectScheme == None else literal_eval(subselectScheme)
+        self.clipValues = True if clipValues == None else literal_eval(clipValues)
+        self.fullQ = True if fullQ == None else literal_eval(fullQ)
+        self.trainEvery = int(trainEvery)
+        self.network = DQNNetwork(
+            numActions=(4 if self.noStop else 5), recurrentNetwork=self.recurrentNetwork, **kwargs
+        )
         self.gameHistory = None
-        self.subselectScheme = bool(subselectScheme)
-        self.clipValues = bool(clipValues)
         self.parameters.update(
             {
                 "K": self.K,
@@ -199,7 +251,10 @@ class DQNAgent(PacmanAgent):
     def agentInit(self, gameState):
         state = gameStateTensor(gameState)
         stateShape = state.shape
-        self.network.initNetworks((stateShape[0], stateShape[1], self.K))
+        if self.recurrentNetwork:
+            self.network.initNetworks(tuple([self.K]) + stateShape)
+        else:
+            self.network.initNetworks((stateShape[0], stateShape[1], self.K))
         self.parameters.update(self.network.toJson())
 
     def updateExperience(self, state):
@@ -228,6 +283,8 @@ class DQNAgent(PacmanAgent):
             yy = self.gamma * np.max(yy, axis=1)
         yy[isTerminal == True] = 0
         yy += rewards
+        if self.fullQ:
+            yy = y[tuple(range(actions.size)), tuple(actions)] * (1 - self.alpha) + self.alpha * yy
         if self.clipValues:
             yy = np.clip(yy, -1, 1)
         y[tuple(range(actions.size)), tuple(actions)] = yy
@@ -235,18 +292,21 @@ class DQNAgent(PacmanAgent):
 
     def beginGame(self, gameState):
         state = gameStateTensor(gameState)
-        self.gameHistory = DQNHistory(self.K + 2, self.K, state)
+        self.gameHistory = DQNHistory(self.K + 2, self.K, self.recurrentNetwork, state)
 
     def endGame(self, gameState):
         if self.episodeIt < self.numTraining:
             state = gameStateTensor(gameState)
             reward = self.rewards(gameState)
-            self.train(state, reward, True)
+            if (self.episodeIt + 1) == self.numTraining:
+                self.train(state, reward, True, [0], True)
+            else:
+                self.train(state, reward, True)
         self.gameHistory = None
 
-    def train(self, state, reward, isTerminal, validActions=[0]):
+    def train(self, state, reward, isTerminal, validActions=[0], force=False):
         previousState = self.previousState
-        if previousState != None:
+        if previousState != None and (force or ((self.network.it % self.trainEvery) == 0)):
             phiState = self.gameHistory.phi()
             phiNextState = self.gameHistory.phiNext(state)
             transition = DQNTransition(phiState, previousState.action, phiNextState, reward, isTerminal, validActions)
