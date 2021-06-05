@@ -79,33 +79,23 @@ class PacmanAgent(Agent):
         if force or (self.printSteps > 0 and ((self.episodeIt + 1) % self.printSteps) == 0):
             its = self.episodeIt if self.episodeIt < self.numTraining else (self.episodeIt - self.numTraining)
             its = 1 if its == 0 else its
-            meanIts = min(its, self.printSteps)
-            scores = np.array([k[1] for k in self.metrics["games"]][-meanIts:])
-            wins = np.array([k[2] for k in self.metrics["games"]][-meanIts:])
-            actions = np.array([k[3] for k in self.metrics["games"]][-meanIts:])
-            print(
-                "Episode: {}\n\t{: <20}{}\n\t{: <20}{:0.2f}\n\t{: <20}{}\n\t{: <20}{}\n\t{: <20}{}\n\t{: <20}{:0.2f}\n\t{: <20}{:0.2f}\n\t{: <20}{:0.2f}\n\t{: <20}{:0.2f}".format(
-                    self.episodeIt,
-                    "Total games:",
-                    its,
-                    "Total time:",
-                    self.metrics["totalTime"],
-                    "Total wins:",
-                    np.sum(wins),
-                    "Total actions:",
-                    self.metrics["totalActions"],
-                    "Is training:",
-                    self.episodeIt < self.numTraining,
-                    "Max score:",
-                    np.amax(scores),
-                    "Mean wins:",
-                    np.mean(wins),
-                    "Mean score:",
-                    np.mean(scores),
-                    "Mean actions:",
-                    np.mean(actions),
-                )
-            )
+            meanIts = min(its, 100)
+            rewardScores = np.array([k[0] for k in self.metrics["games"]])
+            scores = np.array([k[1] for k in self.metrics["games"]])
+            wins = np.array([k[2] for k in self.metrics["games"]])
+            actions = np.array([k[3] for k in self.metrics["games"]])
+            print("Episode: {}".format(self.episodeIt + 1))
+            print("\t{: <20}{:}".format("Total wins:", np.sum(wins)))
+            print("\t{: <20}{:0.2f}".format("Total time:", self.metrics["totalTime"]))
+            print("\t{: <20}{}".format("Total actions:", self.metrics["totalActions"]))
+            print("\t{: <20}{:0.2f}".format("Win rate:", np.mean(wins[-meanIts:]) * 100.0))
+            print("\t{: <20}{:0.2f}".format("Sup score:", np.amax(scores)))
+            print("\t{: <20}{:0.2f}".format("Max score:", np.amax(scores[-meanIts:])))
+            print("\t{: <20}{:0.2f}".format("Mean score:", np.mean(scores[-meanIts:])))
+            print("\t{: <20}{:0.2f}".format("Mean actions:", np.mean(actions[-meanIts:])))
+            print("\t{: <20}{:0.2f}".format("Sup total reward:", np.amax(rewardScores)))
+            print("\t{: <20}{:0.2f}".format("Max total reward:", np.amax(rewardScores[-meanIts:])))
+            print("\t{: <20}{:0.2f}".format("Mean total reward:", np.mean(rewardScores[-meanIts:])))
 
     def collectMetrics(self, gameState):
         stopGameTime = time.perf_counter()
