@@ -5,7 +5,7 @@ import numpy as np
 from PacmanAgent import PacmanAgent, PacmanState
 from agentUtil import *
 import tensorflow as tf
-
+from ast import literal_eval as make_tuple
 
 def convolutionalNetwork(
     convolutionLayers, denseLayers, stateShape, optimizer, init=None, outInit=None, loss=tf.losses.MeanSquaredError()
@@ -36,8 +36,10 @@ def convolutionalNetwork(
 class DQNNetwork:
     def __init__(
         self,
-        C=10,
-        learningRate=0.005,
+        C=1000,
+        learningRate=0.05,
+        arch = None,
+        convArch = None,
         **kwargs,
     ):
         self.C = int(C)
@@ -46,8 +48,8 @@ class DQNNetwork:
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = (32, 16, 5)
-        self.convolutionalArchitecture = [(32, 2, 4)]
+        self.architecture = (256, 5) if arch == None else make_tuple(arch)
+        self.convolutionalArchitecture = [(64, 2, 4)] if convArch == None else make_tuple(convArch)
 
     def __str__(self) -> str:
         return str("{:0.6f}".format(self.fitHistory.history["loss"][0]))
@@ -120,7 +122,9 @@ class DQNAgent(PacmanAgent):
         K=4,
         gamma=0.99,
         minibatchSize=32,
-        experienceSize=500,
+        experienceSize=100000,
+        subselectScheme = True,
+        clipValues = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -132,6 +136,8 @@ class DQNAgent(PacmanAgent):
         self.experienceReplay = [None] * int(experienceSize)
         self.network = DQNNetwork(**kwargs)
         self.gameHistory = None
+        self.subselectScheme = bool(subselectScheme)
+        self.clipValues = bool(clipValues)
 
     def agentInit(self, gameState):
         state = gameStateTensor(gameState)
@@ -158,10 +164,14 @@ class DQNAgent(PacmanAgent):
         validActions = [self.experienceReplay[k].validActions for k in miniBatchIndexes]
         y = self.network(x)
         yy = self.network.inferQQ(xx)
-        yy = self.gamma * np.array([np.max(yy[i, actions]) for i, actions in enumerate(validActions)])
+        if self.subselectScheme:
+            yy = self.gamma * np.array([np.max(yy[i, actions]) for i, actions in enumerate(validActions)])
+        else:
+            yy = self.gamma * np.max(yy, axis=1)
         yy[isTerminal == True] = 0
         yy += rewards
-        yy = np.clip(yy, -1, 1)
+        if self.clipValues:
+            yy = np.clip(yy, -1, 1)
         y[tuple(range(actions.size)), tuple(actions)] = yy
         self.network.learn(x, y, len(miniBatchIndexes))
 
@@ -192,10 +202,10 @@ class DQNAgent(PacmanAgent):
             self.train(state, reward, False, actionsIndexes)
         self.gameHistory.update(state)
         randomAction = self.random.choice([True, False], p=self.epsilonArray)
-        if randomAction and (self.episodeIt < self.numTraining):
+        if randomAction and (self.epsilon > 0.):
             action = actions[self.random.integers(0, len(actions))]
         else:
             Q = self.network(np.array([self.gameHistory.phi()]))[0]
-            action = DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]]
+            action = DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]] if self.subselectScheme else DIRECTIONS[np.argmax(Q)]
         self.previousState = PacmanState(state, DIR2CODE[action], reward, False)
         return action

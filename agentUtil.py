@@ -4,10 +4,10 @@
 import numpy as np
 from numpy import ma
 from game import Directions
-from util import manhattanDistance
 
 DIR2CODE = {Directions.STOP: 0, Directions.EAST: 1, Directions.NORTH: 2, Directions.WEST: 3, Directions.SOUTH: 4}
 DIRECTIONS = [Directions.STOP, Directions.EAST, Directions.NORTH, Directions.WEST, Directions.SOUTH]
+
 
 def getActions(gameState):
     actions = gameState.getLegalActions()
@@ -56,8 +56,7 @@ def getVectorPosition(agent):
 
 def serializeGhostState(agent):
     x, y = getPositionTuple(agent.getPosition())
-    d = DIR2CODE[agent.getDirection()]
-    return (x, y, d, agent.scaredTimer)
+    return (x, y, agent.scaredTimer)
 
 
 def gameStateMatrixFull(gameState):
@@ -87,8 +86,8 @@ def gameStateMatrixBasic(gameState):
         grid[getPositionTuple(capsule)] = 3
     grid[getPositionTuple(gameState.getPacmanPosition())] = 4
     for i, ghost in enumerate(gameState.getGhostStates()):
-        grid[getPositionTuple(ghost.getPosition())] += (1 + (ghost.scaredTimer > 0)) * 5
-    grid = grid[1:-1, 1:-1] / 10.
+        grid[getPositionTuple(ghost.getPosition())] += (2 - (ghost.scaredTimer > 0)) * 5 * (3 ** i)
+    grid = grid / (3 ** len(gameState.getGhostStates()))
     return grid[..., np.newaxis]
 
 
@@ -103,13 +102,4 @@ def gameStateVectorTuple(gameState):
     return pacman + ghosts + food[2:] + capsules
 
 
-def gameStateVectorFromMatrix(gameState):
-    state = gameStateTensor(gameState).flatten()
-    timers = [ghost.scaredTimer for ghost in gameState.getGhostStates()]
-    timers.append(0)
-    return np.append(state, max(timers))
-
-
 gameStateVector = gameStateVectorTuple
-
-
