@@ -5,8 +5,8 @@ import numpy as np
 from numpy import ma
 from game import Directions
 
-DIR2CODE = {Directions.STOP: 0, Directions.EAST: 1, Directions.NORTH: 2, Directions.WEST: 3, Directions.SOUTH: 4}
-DIRECTIONS = [Directions.STOP, Directions.EAST, Directions.NORTH, Directions.WEST, Directions.SOUTH]
+DIR2CODE = {Directions.EAST: 0, Directions.NORTH: 1, Directions.WEST: 2, Directions.SOUTH: 3, Directions.STOP: 4}
+DIRECTIONS = [Directions.EAST, Directions.NORTH, Directions.WEST, Directions.SOUTH, Directions.STOP]
 
 
 def getActions(gameState):
@@ -87,11 +87,13 @@ def gameStateMatrixBasic(gameState):
     grid[getPositionTuple(gameState.getPacmanPosition())] = 4
     for i, ghost in enumerate(gameState.getGhostStates()):
         grid[getPositionTuple(ghost.getPosition())] += (2 - (ghost.scaredTimer > 0)) * 5 * (3 ** i)
-    grid = grid / (3 ** len(gameState.getGhostStates()))
+    grid = grid / ((3 ** len(gameState.getGhostStates())) * 5)
     return grid[..., np.newaxis]
 
 
 from scipy import ndimage
+
+
 def gameStateMatrixScaled(gameState):
     walls = np.array(gameState.getWalls().data, dtype=np.int16)
     food = np.array(gameState.getFood().data, dtype=np.int16)
@@ -101,10 +103,10 @@ def gameStateMatrixScaled(gameState):
     grid[getPositionTuple(gameState.getPacmanPosition())] = 4
     for i, ghost in enumerate(gameState.getGhostStates()):
         grid[getPositionTuple(ghost.getPosition())] += (2 - (ghost.scaredTimer > 0)) * 5 * (3 ** i)
-    x = int(64 / grid.shape[0]) + 1
-    y = int(64 / grid.shape[1]) + 1
-    grid = ndimage.zoom(grid, (x, y), order=0, grid_mode=True, mode='nearest')
-    grid = grid / (3 ** len(gameState.getGhostStates()))
+    x = 32 / grid.shape[0]
+    y = 32 / grid.shape[1]
+    grid = ndimage.zoom(grid, (x, y), order=0, grid_mode=True, mode="nearest")
+    grid = grid / ((3 ** len(gameState.getGhostStates())) * 5)
     return grid[..., np.newaxis]
 
 

@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from tensorflow.python.eager.backprop_util import IsTrainable
 from PacmanAgent import PacmanAgent, PacmanState
 from agentUtil import *
 import tensorflow as tf
 from ast import literal_eval as make_tuple
+from collections import deque
+
 
 def convolutionalNetwork(
     convolutionLayers, denseLayers, stateShape, optimizer, init=None, outInit=None, loss=tf.losses.MeanSquaredError()
@@ -36,11 +39,12 @@ def convolutionalNetwork(
 class DQNNetwork:
     def __init__(
         self,
-        C=1000,
-        learningRate=0.0005,
-        arch = None,
-        convArch = None,
-        optimizer = 'RMSProp',
+        numActions,
+        C=200,
+        learningRate=0.00025,
+        arch=None,
+        convArch=None,
+        optimizer="RMSProp",
         **kwargs,
     ):
         self.C = int(C)
@@ -49,9 +53,13 @@ class DQNNetwork:
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = (512, 5) if arch == None else make_tuple(arch)
-        self.convolutionalArchitecture = [(32, 8, 4, 'elu'), (64, 4, 2, 'elu'), (64, 3, 1, 'relu')] if convArch == None else make_tuple(convArch)
+        self.architecture = tuple([128]) if arch == None else make_tuple(arch)
+        self.architecture = self.architecture + tuple([numActions])
+        self.convolutionalArchitecture = (
+            [(16, 6, 2, "relu"), (32, 4, 2, "relu")] if convArch == None else make_tuple(convArch)
+        )
         self.optimizerName = optimizer
+        self.inputShape = None
 
     def __str__(self) -> str:
         return str("{:0.6f}".format(self.fitHistory.history["loss"][0]))
@@ -63,14 +71,21 @@ class DQNNetwork:
         tf.device("/gpu:0")
         from tensorflow.keras.initializers import RandomUniform
         from tensorflow.keras.optimizers import Adam, RMSprop
-        optimizer = RMSprop(learning_rate=self.learningRate)  if self.optimizerName == 'RMSProp' else Adam(learning_rate=self.learningRate)
+
+        self.inputShape = stateShape
+
+        optimizer = (
+            RMSprop(learning_rate=self.learningRate, rho=0.95, momentum=0.01)
+            if self.optimizerName == "RMSProp"
+            else Adam(learning_rate=self.learningRate)
+        )
         self.QNetwork = convolutionalNetwork(
             self.convolutionalArchitecture,
             self.architecture,
             stateShape,
             optimizer,
             RandomUniform(minval=-0.05, maxval=0.05, seed=None),
-            RandomUniform(minval=-0.0005, maxval=0.0005, seed=None),
+            RandomUniform(minval=-0.05, maxval=0.05, seed=None),
         )
         print("Input shape: {}".format(stateShape))
         self.QNetwork.summary()
@@ -91,22 +106,41 @@ class DQNNetwork:
     def inferQQ(self, x):
         return self.QQNetwork(x).numpy()
 
+    def toJson(self):
+        import json
+
+        return {
+            "arch": self.architecture,
+            "convArch": self.convolutionalArchitecture,
+            "learningRate": self.learningRate,
+            "C": self.C,
+            "inputShape": self.inputShape,
+            "optimizerName": self.optimizerName,
+            "network": json.loads(self.QNetwork.to_json()),
+        }
+
 
 class DQNHistory:
     def __init__(self, size, K, state):
         self.size = size
         self.K = K
-        self.stack = [state for k in range(size)]
+        self.stack = deque([state for k in range(size)])
 
     def update(self, state):
-        self.stack.pop(0)
+        self.stack.popleft()
         self.stack.append(state)
 
     def phi(self):
-        return np.concatenate(tuple([state for state in self.stack[-self.K :]]), axis=2)
+        if (self.K - 1) == 0:
+            return self.stack[-1]
+        stack = list(self.stack)
+        return np.concatenate(tuple([state for state in stack[-self.K :]]), axis=2)
 
     def phiNext(self, nextState):
-        sequence = self.stack[-(self.K - 1) :]
+        if (self.K - 1) == 0:
+            return nextState
+        stack = list(self.stack)
+        sequence = stack[-(self.K - 1) :]
         sequence.append(nextState)
         return np.concatenate(tuple([state for state in sequence]), axis=2)
 
@@ -128,8 +162,9 @@ class DQNAgent(PacmanAgent):
         gamma=0.99,
         minibatchSize=32,
         experienceSize=100000,
-        subselectScheme = True,
-        clipValues = True,
+        subselectScheme=False,
+        clipValues=False,
+        noStop=True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -139,15 +174,33 @@ class DQNAgent(PacmanAgent):
         self.minibatchSize = int(minibatchSize)
         self.experienceSize = int(experienceSize)
         self.experienceReplay = [None] * int(experienceSize)
-        self.network = DQNNetwork(**kwargs)
+        self.noStop = bool(noStop)
+        self.network = DQNNetwork(numActions=(4 if self.noStop else 5), **kwargs)
         self.gameHistory = None
         self.subselectScheme = bool(subselectScheme)
         self.clipValues = bool(clipValues)
+        self.parameters.update(
+            {
+                "K": self.K,
+                "gamma": self.gamma,
+                "experienceSize": self.experienceSize,
+                "minibatchSize": self.minibatchSize,
+                "subselectScheme": self.subselectScheme,
+                "clipValues": self.clipValues,
+                "experience": 0,
+                "noStop": self.noStop,
+            }
+        )
+
+    def updateJson(self):
+        self.parameters["learningEpochs"] = self.network.it
+        self.parameters["experience"] = self.experienceIt
 
     def agentInit(self, gameState):
         state = gameStateTensor(gameState)
         stateShape = state.shape
         self.network.initNetworks((stateShape[0], stateShape[1], self.K))
+        self.parameters.update(self.network.toJson())
 
     def updateExperience(self, state):
         self.experienceReplay[self.experienceIt % self.experienceSize] = state
@@ -166,10 +219,10 @@ class DQNAgent(PacmanAgent):
         actions = np.array([self.experienceReplay[k].action for k in miniBatchIndexes])
         rewards = np.array([self.experienceReplay[k].reward for k in miniBatchIndexes])
         isTerminal = np.array([self.experienceReplay[k].isTerminal for k in miniBatchIndexes])
-        validActions = [self.experienceReplay[k].validActions for k in miniBatchIndexes]
         y = self.network(x)
         yy = self.network.inferQQ(xx)
         if self.subselectScheme:
+            validActions = [self.experienceReplay[k].validActions for k in miniBatchIndexes]
             yy = self.gamma * np.array([np.max(yy[i, actions]) for i, actions in enumerate(validActions)])
         else:
             yy = self.gamma * np.max(yy, axis=1)
@@ -201,18 +254,25 @@ class DQNAgent(PacmanAgent):
             self.learn()
 
     def selectAction(self, gameState, actions, actionsIndexes):
+        if self.noStop:
+            actions.remove(Directions.STOP)
+            actionsIndexes.remove(DIR2CODE[Directions.STOP])
         state = gameStateTensor(gameState)
         reward = self.rewards(gameState)
         if self.episodeIt < self.numTraining:
             self.train(state, reward, False, actionsIndexes)
         self.gameHistory.update(state)
         randomAction = self.random.choice([True, False], p=self.epsilonArray)
-        if randomAction and (self.epsilon > 0.):
+        if randomAction and (self.epsilon > 0.0):
             action = actions[self.random.integers(0, len(actions))]
         else:
             Q = self.network(np.array([self.gameHistory.phi()]))[0]
-            action = DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]] if self.subselectScheme else DIRECTIONS[np.argmax(Q)]
-            if action not in actions:
-                action = Directions.STOP
+            action = (
+                DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]]
+                if self.subselectScheme
+                else DIRECTIONS[np.argmax(Q)]
+            )
         self.previousState = PacmanState(state, DIR2CODE[action], reward, False)
+        if action not in actions:
+            action = Directions.STOP
         return action

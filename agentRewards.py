@@ -24,12 +24,12 @@ class Rewards:
         score = (
             256.0 * gameState.isWin()
             - 256.0 * gameState.isLose()
-            + 32 * (self.food != food)
-            - (nearestGhost < 3) * 4
+            + 16 * (self.food != food)
+            - (nearestGhost < 2) * 4
             - 1
             + 64 * (self.capsules != capsules)
         )
-        self.score = score
+        self.score += score
         self.food = food
         self.capsules = capsules
         return score / 128.0

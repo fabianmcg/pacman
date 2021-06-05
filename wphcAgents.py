@@ -13,6 +13,11 @@ class WPHCAgent(PHCAgent):
         self.deltaLose = deltaLose
         self.C = dict()
         self.PiAvg = dict()
+        self.parameters.update(
+            {
+                "deltaLose": self.deltaLose,
+            }
+        )
 
     def initAll(self, state, numActions):
         if state not in self.Pi:
