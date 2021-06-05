@@ -557,8 +557,8 @@ def readCommand(argv):
                       help=default('Maximum length of time an agent can spend computing in a single game'), default=30)
     parser.add_option('--records-path', dest='recordsPath', type='str',
                       help=default('Path to store the results'), default="")
-    parser.add_option('--scores', dest='scorePath', type='str',
-                      help=default('Scores filename'), default="game-scores.json")
+    parser.add_option('-i', '--gameInfo', dest='gameInfoPath', type='str',
+                      help=default('Game information filename'), default="game-info.json")
     parser.add_option('--video', dest='video', type='str',
                       help=default('Video filename'), default=None)
 
@@ -567,7 +567,7 @@ def readCommand(argv):
         raise Exception('Command line input not understood: ' + str(otherjunk))
     args = dict()
     args["recordsPath"] = options.recordsPath
-    args["scorePath"] = options.scorePath
+    args["gameInfoPath"] = options.gameInfoPath
     
     # Fix the random seed
     if options.fixRandomSeed:
@@ -681,7 +681,7 @@ def replayGame(layout, actions, display):
     display.finish()
 
 
-def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, recordsPath="", scorePath = ""):
+def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, recordsPath="", gameInfoPath = ""):
     import __main__
     __main__.__dict__['_display'] = display
 
@@ -689,7 +689,6 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
     games = []
     startTime = time.perf_counter()
     printTimer = 0
-    scores = []
     for i in range(numGames):
         beQuiet = i < numTraining
         if beQuiet:
@@ -707,7 +706,6 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         game.run()
         if not beQuiet:
             games.append(game)
-        scores.append((game.state.getScore(), game.state.isWin()))
 
         if record and not beQuiet:
             import pickle
@@ -722,10 +720,11 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
             
     stopTime = time.perf_counter()
     print("Total elapsed time: {:.2f}".format(stopTime - startTime))
-    scores = {"scores" : [game[0] for game in scores], "wins" : [game[1] for game in scores],
-                "nt" : numTraining, "ng" : numGames}
-    with open(scorePath, 'w') as outfile:
-        json.dump(scores, outfile)
+    if "toJson" in dir(pacman):
+        gameInfo = pacman.toJson()
+        gameInfo["parameters"].update({"totalTime" : stopTime - startTime, "numGames" : numGames})
+        with open(gameInfoPath, 'w') as outfile:
+            json.dump(gameInfo, outfile, indent=1)
     if (numGames-numTraining) > 0:
         scores = [game.state.getScore() for game in games]
         wins = [game.state.isWin() for game in games]
@@ -734,8 +733,8 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         print('Scores:       ', ', '.join([str(score) for score in scores]))
         print('Win Rate:      %d/%d (%.2f)' %
               (wins.count(True), len(wins), winRate))
-        print('Record:       ', ', '.join(
-            [['Loss', 'Win'][int(w)] for w in wins]))
+        # print('Record:       ', ', '.join(
+        #     [['Loss', 'Win'][int(w)] for w in wins]))
     return games
 
 

@@ -14,6 +14,16 @@ class PHCAgent(PacmanAgent):
         self.delta = float(delta)
         self.Q = dict()
         self.Pi = dict()
+        self.parameters.update(
+            {
+                "gamma": self.gamma,
+                "alpha": self.alpha,
+                "delta": self.delta,
+            }
+        )
+
+    def updateJson(self):
+        self.parameters["numExploredStates"] = len(self.Q)
 
     def endGame(self, gameState):
         self.learn(tuple(gameStateVector(gameState)), gameState)
