@@ -86,10 +86,10 @@ def scoreEvaluationFunction(currentGameState):
     return currentGameState.getScore()
 
 from PacmanAgent import PacmanAgent
-import phc
-import wphc
-import dqn
+import phcAgents
+import wphcAgents
+import dqnAgents
 
-PHCAgent = phc.PHCAgent
-WPHCAgent = wphc.WPHCAgent
-DQNAgent = dqn.DQNAgent
+PHCAgent = phcAgents.PHCAgent
+WPHCAgent = wphcAgents.WPHCAgent
+DQNAgent = dqnAgents.DQNAgent
