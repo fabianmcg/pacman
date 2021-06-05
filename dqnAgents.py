@@ -67,7 +67,7 @@ class DQNNetwork:
         numActions,
         recurrentNetwork,
         C=200,
-        learningRate=0.00025,
+        learningRate=0.0005,
         arch=None,
         convArch=None,
         optimizer="RMSProp",
@@ -80,10 +80,10 @@ class DQNNetwork:
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = tuple([128]) if arch == None else literal_eval(arch)
+        self.architecture = tuple([256]) if arch == None else literal_eval(arch)
         self.architecture = self.architecture + tuple([numActions])
         self.convolutionalArchitecture = (
-            [(16, 6, 2, "relu"), (32, 4, 2, "relu")] if convArch == None else literal_eval(convArch)
+            [(16, 6, 2, "relu"), (32, 4, 2, "relu"), (32, 3, 1, "relu")] if convArch == None else literal_eval(convArch)
         )
         self.optimizerName = optimizer
         self.inputShape = None
@@ -223,9 +223,9 @@ class DQNAgent(PacmanAgent):
         self.experienceReplay = [None] * int(experienceSize)
         self.noStop = True if noStop == None else literal_eval(noStop)
         self.recurrentNetwork = False if recurrent == None else literal_eval(recurrent)
-        self.subselectScheme = True if subselectScheme == None else literal_eval(subselectScheme)
+        self.subselectScheme = False if subselectScheme == None else literal_eval(subselectScheme)
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
-        self.fullQ = True if fullQ == None else literal_eval(fullQ)
+        self.fullQ = False if fullQ == None else literal_eval(fullQ)
         self.trainEvery = int(trainEvery)
         self.network = DQNNetwork(
             numActions=(4 if self.noStop else 5), recurrentNetwork=self.recurrentNetwork, **kwargs
