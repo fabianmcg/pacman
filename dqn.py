@@ -40,6 +40,7 @@ class DQNNetwork:
         learningRate=0.05,
         arch = None,
         convArch = None,
+        optimizer = 'RMSProp',
         **kwargs,
     ):
         self.C = int(C)
@@ -50,6 +51,7 @@ class DQNNetwork:
         self.fitHistory = None
         self.architecture = (256, 5) if arch == None else make_tuple(arch)
         self.convolutionalArchitecture = [(64, 2, 4)] if convArch == None else make_tuple(convArch)
+        self.optimizerName = optimizer
 
     def __str__(self) -> str:
         return str("{:0.6f}".format(self.fitHistory.history["loss"][0]))
@@ -60,12 +62,13 @@ class DQNNetwork:
     def initNetworks(self, stateShape):
         tf.device("/gpu:0")
         from tensorflow.keras.initializers import RandomUniform
-
+        from tensorflow.keras.optimizers import Adam, RMSprop
+        optimizer = RMSprop(learning_rate=self.learningRate)  if self.optimizerName == 'RMSProp' else Adam(learning_rate=self.learningRate)
         self.QNetwork = convolutionalNetwork(
             self.convolutionalArchitecture,
             self.architecture,
             stateShape,
-            tf.keras.optimizers.Adam(learning_rate=self.learningRate),
+            optimizer,
             RandomUniform(minval=-0.05, maxval=0.05, seed=None),
             RandomUniform(minval=-0.0005, maxval=0.0005, seed=None),
         )
@@ -207,5 +210,7 @@ class DQNAgent(PacmanAgent):
         else:
             Q = self.network(np.array([self.gameHistory.phi()]))[0]
             action = DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]] if self.subselectScheme else DIRECTIONS[np.argmax(Q)]
+            if action not in actions:
+                action = Directions.STOP
         self.previousState = PacmanState(state, DIR2CODE[action], reward, False)
         return action
