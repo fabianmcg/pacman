@@ -10,9 +10,7 @@ from ast import literal_eval
 from collections import deque
 
 
-def convolutionalNetwork(
-    convolutionLayers, denseLayers, stateShape, optimizer, loss=tf.losses.MeanSquaredError()
-):
+def convolutionalNetwork(convolutionLayers, denseLayers, stateShape, optimizer, loss=tf.losses.MeanSquaredError()):
     from tensorflow.keras.layers import Dense, Flatten, Conv2D
 
     model = tf.keras.Sequential(name="DQN")
@@ -53,7 +51,7 @@ def recurrentConvolutionalNetwork(
         model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3]))
     model.add(Flatten())
     for layer in denseLayers[0:-1]:
-        model.add(Dense(layer, activation="relu", init='he_uniform'))
+        model.add(Dense(layer, activation="relu", init="he_uniform"))
     model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear"))
     model.compile(loss=loss, optimizer=optimizer, metrics=["accuracy"])
     return model
@@ -82,7 +80,7 @@ class DQNNetwork:
         self.architecture = tuple([256]) if arch == None else literal_eval(arch)
         self.architecture = self.architecture + tuple([numActions])
         self.convolutionalArchitecture = (
-            [(32, 4, 4, "relu"), (64, 4, 2, "relu")] if convArch == None else literal_eval(convArch)
+            [(64, 4, 3, "relu"), (64, 3, 2, "relu")] if convArch == None else literal_eval(convArch)
         )
         self.optimizerName = optimizer
         self.inputShape = None
@@ -222,11 +220,9 @@ class DQNAgent(PacmanAgent):
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
         self.fullQ = False if fullQ == None else literal_eval(fullQ)
         self.trainEvery = int(trainEvery)
-        self.numActions = (4 if self.noStop else 5)
+        self.numActions = 4 if self.noStop else 5
         self.initialGames = int(initialGames)
-        self.network = DQNNetwork(
-            numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, **kwargs
-        )
+        self.network = DQNNetwork(numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, **kwargs)
         self.gameHistory = None
         self.parameters.update(
             {
@@ -279,7 +275,7 @@ class DQNAgent(PacmanAgent):
             yy = self.gamma * np.array([np.max(yy[i, actions]) for i, actions in enumerate(validActions)])
         else:
             yy = self.gamma * np.max(yy, axis=1)
-        yy[isTerminal == True] = 0.
+        yy[isTerminal == True] = 0.0
         yy += rewards
         if self.fullQ:
             yy = y[tuple(range(actions.size)), tuple(actions)] * (1 - self.alpha) + self.alpha * yy
