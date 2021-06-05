@@ -18,13 +18,13 @@ def convolutionalNetwork(
             convolutionLayers[0][0],
             convolutionLayers[0][1],
             strides=convolutionLayers[0][2],
-            activation="relu",
+            activation=convolutionLayers[0][3],
             kernel_initializer=init,
             input_shape=stateShape,
         )
     )
     for layer in convolutionLayers[1:]:
-        model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation="relu", kernel_initializer=init))
+        model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3], kernel_initializer=init))
     model.add(Flatten())
     for layer in denseLayers[0:-1]:
         model.add(Dense(layer, activation="relu", kernel_initializer=init))
@@ -49,8 +49,8 @@ class DQNNetwork:
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = (256, 5) if arch == None else make_tuple(arch)
-        self.convolutionalArchitecture = [(16, 8, 4), (32, 4, 2), (32, 3, 1)] if convArch == None else make_tuple(convArch)
+        self.architecture = (512, 5) if arch == None else make_tuple(arch)
+        self.convolutionalArchitecture = [(32, 8, 4, 'elu'), (64, 4, 2, 'elu'), (64, 3, 1, 'relu')] if convArch == None else make_tuple(convArch)
         self.optimizerName = optimizer
 
     def __str__(self) -> str:
