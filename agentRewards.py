@@ -23,9 +23,10 @@ class Rewards:
         # )
         score = (
             256.0 * gameState.isWin()
-            - 512.0 * gameState.isLose()
-            + 16. * (self.food != food)
+            - 256.0 * gameState.isLose()
+            + 32. * (self.food != food)
             + 64 * (self.capsules != capsules)
+            - 1.
         )
         self.score += score
         self.food = food
