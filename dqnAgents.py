@@ -51,7 +51,7 @@ def recurrentConvolutionalNetwork(
         model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3]))
     model.add(Flatten())
     for layer in denseLayers[0:-1]:
-        model.add(Dense(layer, activation="relu", init="he_uniform"))
+        model.add(Dense(layer, activation="relu", init=tf.keras.initializers.HeUniform()))
     model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear"))
     model.compile(loss=loss, optimizer=optimizer, metrics=["accuracy"])
     return model
@@ -77,10 +77,10 @@ class DQNNetwork:
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = tuple([256]) if arch == None else literal_eval(arch)
+        self.architecture = tuple([512]) if arch == None else literal_eval(arch)
         self.architecture = self.architecture + tuple([numActions])
         self.convolutionalArchitecture = (
-            [(16, 3, 1, "relu"), (32, 3, 1, "relu")] if convArch == None else literal_eval(convArch)
+            [(32, 3, 1, "relu"), (64, 2, 1, "relu")] if convArch == None else literal_eval(convArch)
         )
         self.optimizerName = optimizer
         self.inputShape = None
@@ -193,10 +193,9 @@ class DQNAgent(PacmanAgent):
     def __init__(
         self,
         K=4,
-        alpha=0.2,
         gamma=0.99,
         minibatchSize=32,
-        experienceSize=100000,
+        experienceSize=200000,
         clipValues=None,
         recurrentNetwork=None,
         trainUpdates=1,
@@ -205,7 +204,6 @@ class DQNAgent(PacmanAgent):
         super().__init__(**kwargs)
         self.experienceIt = 0
         self.K = int(K)
-        self.alpha = float(alpha)
         self.gamma = float(gamma)
         self.minibatchSize = int(minibatchSize)
         self.experienceSize = int(experienceSize)
