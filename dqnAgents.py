@@ -51,7 +51,7 @@ def recurrentConvolutionalNetwork(
         model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3]))
     model.add(Flatten())
     for layer in denseLayers[0:-1]:
-        model.add(Dense(layer, activation="relu", init=tf.keras.initializers.HeUniform()))
+        model.add(Dense(layer, activation="relu", kernel_initializer=tf.keras.initializers.HeUniform()))
     model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear"))
     model.compile(loss=loss, optimizer=optimizer, metrics=["accuracy"])
     return model
