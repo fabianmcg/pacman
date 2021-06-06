@@ -19,18 +19,21 @@ class WPHCAgent(PHCAgent):
             }
         )
 
-    def initAll(self, state, numActions):
+    def initState(self, agentState):
+        state = agentState.state
         if state not in self.Pi:
+            numActions = len(agentState.validActionsIndexes)
             self.Q[state] = np.full(numActions, 0.0)
             self.Pi[state] = np.full(numActions, 1.0 / numActions)
             self.C[state] = 0
             self.PiAvg[state] = np.full(numActions, 1.0 / numActions)
 
-    def learn(self, state, gameState):
+    def learn(self, agentState, isTerminal):
         previousState = self.previousState.state
-        previousAction = self.previousState.action
-        numActions = len(self.previousState.validActions)
-        reward = self.rewards(gameState)
+        previousAction = self.previousState.validActionsIndexes.index(self.previousState.action)
+        numActions = len(self.previousState.validActionsIndexes)
+        state = agentState.state
+        reward = agentState.reward
         if state in self.Q:
             reward += self.gamma * np.amax(self.Q[state])
         Q = self.Q[previousState]
