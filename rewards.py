@@ -9,14 +9,18 @@ class Rewards:
         self.food = 0
         self.capsules = 0
         self.currentReward = 0
+        self.it = 0
 
     def initial(self, gameState):
         self.score = 0
         self.currentReward = 0
         self.food = gameState.getNumFood()
         self.capsules = len(gameState.getCapsules())
+        self.it = 0
 
     def computeRewardI(self, gameState):
+        if self.it == 0:
+            return 0
         food = gameState.getNumFood()
         capsules = len(gameState.getCapsules())
         # pacmanPosition = gameState.getPacmanPosition()
@@ -34,6 +38,7 @@ class Rewards:
         self.score += score
         self.food = food
         self.capsules = capsules
+        self.it += 1
         return self.currentReward
 
     def computeRewardII(self, gameState):

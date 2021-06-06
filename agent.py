@@ -3,7 +3,7 @@
 
 from game import Agent, Directions
 from rewards import *
-from agentUtil import DIR2CODE, getActions
+from agentUtil import DIR2CODE, getActions, DIRECTIONS
 import time
 import numpy as np
 from ast import literal_eval
@@ -29,6 +29,7 @@ class PacmanAgent(Agent):
         finalEpsilon=0.005,
         finalTrainingEpsilon=0.1,
         noStopAction=None,
+        sameActionPolicy = 0,
         **kwargs,
     ):
         self.index = 0
@@ -46,6 +47,7 @@ class PacmanAgent(Agent):
         self.finalEpsilon = float(finalEpsilon)
         self.finalTrainingEpsilon = float(finalTrainingEpsilon)
         self.noStopAction = True if noStopAction == None else literal_eval(noStopAction)
+        self.sameActionPolicy = int(sameActionPolicy)
         self.rewards = Rewards(**kwargs)
         self.random = np.random.default_rng(int(kwargs["seed"])) if "seed" in kwargs else np.random.default_rng(12345)
         self.epsilonStep = (self.epsilon - self.finalTrainingEpsilon) / (
@@ -63,6 +65,7 @@ class PacmanAgent(Agent):
             "finalTrainingEpsilon": self.finalTrainingEpsilon,
             "epsilonStep": self.epsilonStep,
             "noStopAction": self.noStopAction,
+            "sameActionPolicy": self.sameActionPolicy,
             "seed": int(kwargs["seed"]) if "seed" in kwargs else 12345,
         }
 
@@ -70,12 +73,6 @@ class PacmanAgent(Agent):
         pass
 
     def agentInit(self, gameState):
-        pass
-
-    def beginGame(self, gameState):
-        pass
-
-    def endGame(self, gameState):
         pass
 
     def getState(self, gameState):
@@ -143,7 +140,6 @@ class PacmanAgent(Agent):
             self.epsilon = self.finalEpsilon
             self.epsilonArray = [self.epsilon, 1 - self.epsilon]
         self.startGameTime = time.perf_counter()
-        self.beginGame(gameState)
 
     def final(self, gameState):
         self.rewards.computeReward(gameState)
@@ -151,12 +147,12 @@ class PacmanAgent(Agent):
             state=self.getState(gameState),
             reward=self.rewards(),
             isTerminal=True,
-            validActionsIndexes=[4]
+            validActionsIndexes=[0],
+            action=self.previousState.action
         )
         self.initState(state)
         if self.previousState != None and self.episodeIt >= self.numExplore:
             self.learn(state, True)
-        self.endGame(gameState)
         self.previousState = None
         if self.episodeIt < self.numTraining and self.episodeIt >= self.numExplore:
             self.epsilon -= self.epsilonStep
@@ -180,6 +176,7 @@ class PacmanAgent(Agent):
             isTerminal=False,
             validActionsIndexes=actionsIndexes,
             validActions=actions,
+            action=self.previousState.action if self.previousState != None else DIR2CODE[Directions.STOP], 
         )
         self.initState(state)
         if self.previousState != None and self.episodeIt >= self.numExplore:
@@ -188,7 +185,9 @@ class PacmanAgent(Agent):
 
     def getAction(self, state):
         actions = state.validActions
-        if self.epsilon > 0.0 and self.random.choice([True, False], p=self.epsilonArray):
+        if (self.sameActionPolicy > 1) and ((self.actionIt % self.sameActionPolicy) != 0):
+            action =  DIRECTIONS[self.previousState.action]
+        elif self.epsilon > 0.0 and self.random.choice([True, False], p=self.epsilonArray):
             action = actions[self.random.integers(0, len(actions))]
         else:
             action = self.selectAction(state)
