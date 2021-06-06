@@ -54,7 +54,7 @@ def gameStateMatrix(gameState):
     grid = 2 * food + walls
     for capsule in gameState.data.capsules:
         grid[getPositionTuple(capsule)] = 3
-    grid[getPositionTuple(gameState.getPacmanPosition())] = 5
+    grid[getPositionTuple(gameState.getPacmanPosition())] = 4
     for ghost in gameState.getGhostStates():
         position = getPositionTuple(ghost.getPosition())
         grid[position] = max(6 - (ghost.scaredTimer > 0), grid[position])
