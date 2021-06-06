@@ -28,10 +28,10 @@ class Rewards:
         #     [manhattanDistance(pacmanPosition, ghost.getPosition()) for ghost in gameState.getGhostStates()]
         # )
         score = (
-            256.0 * gameState.isWin()
+            128.0 * gameState.isWin()
             - 256.0 * gameState.isLose()
-            + 32.0 * (self.food != food)
-            + 64 * (self.capsules != capsules)
+            + 8.0 * (self.food != food)
+            + 32 * (self.capsules != capsules)
             - 1
         )
         self.currentReward = score / 256.0
