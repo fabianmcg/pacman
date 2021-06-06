@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from PacmanAgent import PacmanAgent, PacmanState
+from agent import PacmanAgent
 from agentUtil import *
 
 
@@ -25,19 +25,22 @@ class PHCAgent(PacmanAgent):
     def updateJson(self):
         self.parameters["numExploredStates"] = len(self.Q)
 
-    def endGame(self, gameState):
-        self.learn(tuple(gameStateVector(gameState)), gameState)
+    def getState(self, gameState):
+        return gameStateVector(gameState)
 
-    def initAll(self, state, numActions):
+    def initState(self, agentState):
+        state = agentState.state
         if state not in self.Pi:
+            numActions = len(agentState.validActionsIndexes)
             self.Q[state] = np.full(numActions, 0.0)
             self.Pi[state] = np.full(numActions, 1.0 / numActions)
 
-    def learn(self, state, gameState):
+    def learn(self, agentState, isTerminal):
         previousState = self.previousState.state
-        previousAction = self.previousState.action
-        numActions = len(self.previousState.validActions)
-        reward = self.rewards(gameState)
+        previousAction = self.previousState.validActionsIndexes.index(self.previousState.action)
+        numActions = len(self.previousState.validActionsIndexes)
+        state = agentState.state
+        reward = agentState.reward
         if state in self.Q:
             reward += self.gamma * np.amax(self.Q[state])
         Q = self.Q[previousState]
@@ -47,16 +50,7 @@ class PHCAgent(PacmanAgent):
         Pi = np.maximum(Pi, np.full(numActions, 0.0))
         self.Pi[previousState] = Pi / np.sum(Pi)
 
-    def selectAction(self, gameState, actions, actionsIndexes):
-        state = tuple(gameStateVector(gameState))
-        self.initAll(state, len(actions))
-        if self.previousState != None:
-            self.learn(state, gameState)
-        randomAction = self.random.choice([True, False], p=self.epsilonArray)
-        if randomAction:
-            action = self.random.integers(0, len(actions))
-        else:
-            Pi = self.Pi[state]
-            action = self.random.choice(list(range(len(actionsIndexes))), p=Pi)
-        self.previousState = PacmanState(state, action, 0, False, actionsIndexes)
-        return actions[action]
+    def selectAction(self, agentState):
+        Pi = self.Pi[agentState.state]
+        action = self.random.choice(list(range(len(agentState.validActions))), p=Pi)
+        return agentState.validActions[action]

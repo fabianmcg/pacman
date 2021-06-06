@@ -3,7 +3,7 @@
 
 import numpy as np
 from tensorflow.python.eager.backprop_util import IsTrainable
-from PacmanAgent import PacmanAgent, PacmanState
+from agent import PacmanAgent
 from agentUtil import *
 import tensorflow as tf
 from ast import literal_eval
@@ -77,10 +77,10 @@ class DQNNetwork:
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = tuple([128, 32]) if arch == None else literal_eval(arch)
+        self.architecture = tuple([256]) if arch == None else literal_eval(arch)
         self.architecture = self.architecture + tuple([numActions])
         self.convolutionalArchitecture = (
-            [(32, 3, 2, "relu")] if convArch == None else literal_eval(convArch)
+            [(16, 3, 1, "relu"), (32, 3, 1, "relu")] if convArch == None else literal_eval(convArch)
         )
         self.optimizerName = optimizer
         self.inputShape = None
@@ -197,13 +197,9 @@ class DQNAgent(PacmanAgent):
         gamma=0.99,
         minibatchSize=32,
         experienceSize=100000,
-        subselectScheme=None,
         clipValues=None,
-        noStop=None,
-        recurrent=None,
-        fullQ=None,
-        trainEvery=1,
-        initialGames=5,
+        recurrentNetwork=None,
+        trainUpdates=1,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -214,14 +210,10 @@ class DQNAgent(PacmanAgent):
         self.minibatchSize = int(minibatchSize)
         self.experienceSize = int(experienceSize)
         self.experienceReplay = [None] * int(experienceSize)
-        self.noStop = True if noStop == None else literal_eval(noStop)
-        self.recurrentNetwork = False if recurrent == None else literal_eval(recurrent)
-        self.subselectScheme = False if subselectScheme == None else literal_eval(subselectScheme)
+        self.recurrentNetwork = False if recurrentNetwork == None else literal_eval(recurrentNetwork)
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
-        self.fullQ = False if fullQ == None else literal_eval(fullQ)
-        self.trainEvery = int(trainEvery)
-        self.numActions = 4 if self.noStop else 5
-        self.initialGames = int(initialGames)
+        self.trainUpdates = int(trainUpdates)
+        self.numActions = 4 if self.noStopAction else 5
         self.network = DQNNetwork(numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, **kwargs)
         self.gameHistory = None
         self.parameters.update(
@@ -230,10 +222,8 @@ class DQNAgent(PacmanAgent):
                 "gamma": self.gamma,
                 "experienceSize": self.experienceSize,
                 "minibatchSize": self.minibatchSize,
-                "subselectScheme": self.subselectScheme,
                 "clipValues": self.clipValues,
                 "experience": 0,
-                "noStop": self.noStop,
                 "numAction": self.numActions,
             }
         )
@@ -242,8 +232,11 @@ class DQNAgent(PacmanAgent):
         self.parameters["learningEpochs"] = self.network.it
         self.parameters["experience"] = self.experienceIt
 
+    def getState(self, gameState):
+        return gameStateTensor(gameState)
+
     def agentInit(self, gameState):
-        state = gameStateTensor(gameState)
+        state = self.getState(gameState)
         stateShape = state.shape
         if self.recurrentNetwork:
             self.network.initNetworks(tuple([self.K]) + stateShape)
@@ -256,12 +249,19 @@ class DQNAgent(PacmanAgent):
         self.experienceIt += 1
 
     def selectMiniBatch(self):
-        size = self.experienceIt if self.experienceIt < self.experienceSize else self.experienceSize
+        size = min(self.experienceIt, self.experienceSize)
         minibatchSize = min(size, self.minibatchSize)
         miniBatchIndexes = self.random.choice(size, size=minibatchSize, replace=False)
         return miniBatchIndexes
 
-    def learn(self):
+    def beginGame(self, gameState):
+        state = self.getState(gameState)
+        self.gameHistory = DQNHistory(self.K * 2, self.K, self.recurrentNetwork, state)
+
+    def endGame(self, gameState):
+        self.gameHistory = None
+
+    def trainStep(self):
         miniBatchIndexes = self.selectMiniBatch()
         x = np.array([self.experienceReplay[k].state for k in miniBatchIndexes])
         xx = np.array([self.experienceReplay[k].nextState for k in miniBatchIndexes])
@@ -269,66 +269,37 @@ class DQNAgent(PacmanAgent):
         rewards = np.array([self.experienceReplay[k].reward for k in miniBatchIndexes])
         isTerminal = np.array([self.experienceReplay[k].isTerminal for k in miniBatchIndexes])
         y = self.network.inferQ(x)
-        yy = self.network.inferQQ(xx)
-        if self.subselectScheme:
-            validActions = [self.experienceReplay[k].validActions for k in miniBatchIndexes]
-            yy = self.gamma * np.array([np.max(yy[i, actions]) for i, actions in enumerate(validActions)])
-        else:
-            yy = self.gamma * np.max(yy, axis=1)
+        yy = np.max(self.network.inferQQ(xx), axis=1) * self.gamma
         yy[isTerminal == True] = 0.0
         yy += rewards
-        if self.fullQ:
-            yy = y[tuple(range(actions.size)), tuple(actions)] * (1 - self.alpha) + self.alpha * yy
         if self.clipValues:
-            yy = np.clip(yy, -1, 1)
+            yy = np.clip(yy, -1.0, 1.0)
         y[tuple(range(actions.size)), tuple(actions)] = yy
         self.network.learn(x, y, len(miniBatchIndexes))
 
-    def beginGame(self, gameState):
-        state = gameStateTensor(gameState)
-        self.gameHistory = DQNHistory(self.K * 2, self.K, self.recurrentNetwork, state)
-
-    def endGame(self, gameState):
-        if self.episodeIt < self.numTraining:
-            state = gameStateTensor(gameState)
-            reward = self.rewards(gameState)
-            if (self.episodeIt + 1) == self.numTraining:
-                self.updateModel(state, reward, True, [0], True)
-            else:
-                self.updateModel(state, reward, True)
-        self.gameHistory = None
-
-    def updateModel(self, state, reward, isTerminal, validActions=[0], force=False):
+    def initState(self, agentState):
         previousState = self.previousState
-        if previousState != None:
+        if self.episodeIt < self.numTraining and previousState != None:
             phiState = self.gameHistory.phi()
-            phiNextState = self.gameHistory.phiNext(state)
-            transition = DQNTransition(phiState, previousState.action, phiNextState, reward, isTerminal, validActions)
+            phiNextState = self.gameHistory.phiNext(agentState.state)
+            transition = DQNTransition(
+                phiState,
+                previousState.action,
+                phiNextState,
+                agentState.reward,
+                agentState.isTerminal,
+                agentState.validActionsIndexes,
+            )
             self.updateExperience(transition)
-            if (self.initialGames <= self.episodeIt) and (force or ((self.network.it % self.trainEvery) == 0)):
-                self.learn()
 
-    def selectAction(self, gameState, actions, actionsIndexes):
-        if self.noStop:
-            actions.remove(Directions.STOP)
-            actionsIndexes.remove(DIR2CODE[Directions.STOP])
-        state = gameStateTensor(gameState)
-        reward = self.rewards(gameState)
-        if self.episodeIt < self.numTraining:
-            self.updateModel(state, reward, False, actionsIndexes)
-        self.gameHistory.update(state)
-        randomAction = self.random.choice([True, False], p=self.epsilonArray)
-        if randomAction and (self.epsilon > 0.0):
-            action = actions[self.random.integers(0, len(actions))]
-        else:
-            Q = self.network(np.array([self.gameHistory.phi()]))[0]
-            # action = (
-            #     DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]]
-            #     if self.subselectScheme
-            #     else DIRECTIONS[np.argmax(Q)]
-            # )
-            action = DIRECTIONS[actionsIndexes[np.argmax(Q[actionsIndexes])]]
-        self.previousState = PacmanState(state, DIR2CODE[action], reward, False)
-        if action not in actions:
-            action = Directions.STOP
+    def learn(self, agentState, isTerminal):
+        if (self.episodeIt < self.numTraining) and (
+            ((self.network.it % self.trainUpdates) == 0) or (isTerminal and (self.episodeIt + 1) == self.numTraining)
+        ):
+            self.trainStep()
+
+    def selectAction(self, agentState):
+        self.gameHistory.update(agentState.state)
+        Q = self.network(np.array([self.gameHistory.phi()]))[0]
+        action = DIRECTIONS[np.argmax(Q)]
         return action
