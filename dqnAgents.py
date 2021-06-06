@@ -251,7 +251,9 @@ class DQNAgent(PacmanAgent):
         self.parameters["experience"] = self.experienceIt
 
     def getState(self, gameState):
-        return gameStateTensor(gameState)
+        matrix = gameStateTensor(gameState)
+        matrix = (matrix - np.mean(matrix)) / np.std(matrix)
+        return matrix
 
     def agentInit(self, gameState):
         state = self.getState(gameState)
