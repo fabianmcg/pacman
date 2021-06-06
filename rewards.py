@@ -4,7 +4,7 @@ from util import manhattanDistance
 
 
 class Rewards:
-    def __init__(self, rewardFuntion=None, **kwargs):
+    def __init__(self, rewardFunction=None, **kwargs):
         self.score = 0
         self.food = 0
         self.capsules = 0
@@ -20,6 +20,7 @@ class Rewards:
 
     def computeRewardI(self, gameState):
         if self.it == 0:
+            self.it += 1
             return 0
         food = gameState.getNumFood()
         capsules = len(gameState.getCapsules())
@@ -38,7 +39,6 @@ class Rewards:
         self.score += score
         self.food = food
         self.capsules = capsules
-        self.it += 1
         return self.currentReward
 
     def computeRewardII(self, gameState):
