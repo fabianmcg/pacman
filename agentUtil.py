@@ -119,10 +119,10 @@ def gameStateMatrixT(gameState):
         grid[getPositionTuple(capsule)] = 3
     grid[getPositionTuple(gameState.getPacmanPosition())] = 4
     for i, ghost in enumerate(gameState.getGhostStates()):
-        grid[getPositionTuple(ghost.getPosition())] = 5 + (ghost.scaredTimer > 0)
-    x = 32 / grid.shape[0]
-    y = 32 / grid.shape[1]
-    grid = ndimage.zoom(grid, (x, y), order=0, grid_mode=True, mode="nearest")
+        grid[getPositionTuple(ghost.getPosition())] = 6 - (ghost.scaredTimer > 0)
+    # x = 32 / grid.shape[0]
+    # y = 32 / grid.shape[1]
+    # grid = ndimage.zoom(grid, (x, y), order=0, grid_mode=True, mode="nearest")
     grid = grid / 6.
     return grid[..., np.newaxis]
 

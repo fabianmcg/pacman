@@ -77,10 +77,10 @@ class DQNNetwork:
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
-        self.architecture = tuple([256]) if arch == None else literal_eval(arch)
+        self.architecture = tuple([128, 32]) if arch == None else literal_eval(arch)
         self.architecture = self.architecture + tuple([numActions])
         self.convolutionalArchitecture = (
-            [(64, 4, 3, "relu"), (64, 3, 2, "relu")] if convArch == None else literal_eval(convArch)
+            [(32, 3, 2, "relu")] if convArch == None else literal_eval(convArch)
         )
         self.optimizerName = optimizer
         self.inputShape = None
