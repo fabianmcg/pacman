@@ -48,24 +48,25 @@ def gameStateMatrixScaled(gameState):
     return grid[..., np.newaxis]
 
 
-from scipy import ndimage
-
-
-def gameStateMatrixT(gameState):
+def gameStateMatrix(gameState):
     walls = np.array(gameState.getWalls().data, dtype=np.int16)
     food = np.array(gameState.getFood().data, dtype=np.int16)
     grid = 2 * food + walls
     for capsule in gameState.data.capsules:
         grid[getPositionTuple(capsule)] = 3
-    grid[getPositionTuple(gameState.getPacmanPosition())] = 4
+    grid[getPositionTuple(gameState.getPacmanPosition())] = 5
     for ghost in gameState.getGhostStates():
         position = getPositionTuple(ghost.getPosition())
         grid[position] = max(6 - (ghost.scaredTimer > 0), grid[position])
-    grid = grid / 6.0
+    return grid / 6.0
+
+
+def gameStateTensorSimple(gameState):
+    grid = gameStateMatrix(gameState)
     return grid[..., np.newaxis]
 
 
-gameStateTensor = gameStateMatrixT
+gameStateTensor = gameStateTensorSimple
 
 
 def gameStateVectorTuple(gameState):
@@ -77,3 +78,13 @@ def gameStateVectorTuple(gameState):
 
 
 gameStateVector = gameStateVectorTuple
+
+
+__image_number = 0
+def saveMatrixAsImage(matrix, name = None):
+    from PIL import Image
+    global __image_number
+    if name == None:
+        name = "{:04d}.png".format(__image_number)
+        __image_number += 1
+    Image.fromarray(np.uint8(matrix * 255.0), 'L').save(name)
