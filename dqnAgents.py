@@ -159,6 +159,7 @@ class DQNTransition:
         self.reward = reward
         self.isTerminal = isTerminal
 
+
 class DQNHistory:
     def __init__(self, K, isDiscrete, recurrent):
         self.K = K
@@ -177,7 +178,7 @@ class DQNHistory:
 
     def phi(self):
         if self.K == 1:
-            return self.stack[1]
+            return self.stack[1].state
         stack = list(self.stack)[-self.K :]
         if self.recurrentOrder:
             return np.array([state.state for state in stack])
@@ -185,7 +186,7 @@ class DQNHistory:
 
     def phiPrev(self):
         if self.K == 1:
-            return self.stack[0]
+            return self.stack[0].state
         stack = list(self.stack)[: self.K]
         if self.recurrentOrder:
             return np.array([state.state for state in stack])
@@ -203,13 +204,7 @@ class DQNHistory:
         return self.stack[-1].action
 
     def getTransition(self):
-        return DQNTransition(
-            self.phiPrev(),
-            self.action(),
-            self.phi(),
-            self.reward(),
-            self.stack[-1].isTerminal
-        )
+        return DQNTransition(self.phiPrev(), self.action(), self.phi(), self.reward(), self.stack[-1].isTerminal)
 
 
 class DQNAgent(PacmanAgent):
