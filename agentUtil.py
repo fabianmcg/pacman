@@ -108,9 +108,26 @@ def gameStateMatrixScaled(gameState):
     grid = ndimage.zoom(grid, (x, y), order=0, grid_mode=True, mode="nearest")
     grid = grid / ((3 ** len(gameState.getGhostStates())) * 5)
     return grid[..., np.newaxis]
+from scipy import ndimage
 
 
-gameStateTensor = gameStateMatrixScaled
+def gameStateMatrixT(gameState):
+    walls = np.array(gameState.getWalls().data, dtype=np.int16)
+    food = np.array(gameState.getFood().data, dtype=np.int16)
+    grid = 2 * food + walls
+    for capsule in gameState.data.capsules:
+        grid[getPositionTuple(capsule)] = 3
+    grid[getPositionTuple(gameState.getPacmanPosition())] = 4
+    for i, ghost in enumerate(gameState.getGhostStates()):
+        grid[getPositionTuple(ghost.getPosition())] = 5 + (ghost.scaredTimer > 0)
+    x = 32 / grid.shape[0]
+    y = 32 / grid.shape[1]
+    grid = ndimage.zoom(grid, (x, y), order=0, grid_mode=True, mode="nearest")
+    grid = grid / 6.
+    return grid[..., np.newaxis]
+
+
+gameStateTensor = gameStateMatrixT
 
 
 def gameStateVectorTuple(gameState):
