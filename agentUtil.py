@@ -51,22 +51,24 @@ def gameStateMatrixScaled(gameState):
 def gameStateMatrix(gameState):
     walls = np.array(gameState.getWalls().data, dtype=np.int16)
     food = np.array(gameState.getFood().data, dtype=np.int16)
-    grid = 2 * food + walls
+    capsules = np.full(walls.shape, 0)
+    pacman = np.full(walls.shape, 0)
+    ghosts = np.full(walls.shape, 0)
+    scaredGhosts = np.full(walls.shape, 0)
     for capsule in gameState.data.capsules:
-        grid[getPositionTuple(capsule)] = 3
-    grid[getPositionTuple(gameState.getPacmanPosition())] = 4
+        capsules[getPositionTuple(capsule)] = 1
+    pacman[getPositionTuple(gameState.getPacmanPosition())] = 1
     for ghost in gameState.getGhostStates():
         position = getPositionTuple(ghost.getPosition())
-        grid[position] = max(6 - (ghost.scaredTimer > 0), grid[position])
-    return grid.T / 6.0
+        if (ghost.scaredTimer <= 0):
+            ghosts[position] = 1
+        else:
+            scaredGhosts[position] = 1
+    grid = np.stack(tuple([walls, pacman, ghosts, scaredGhosts, food, capsules]), axis=-1)
+    return grid
 
 
-def gameStateTensorSimple(gameState):
-    grid = gameStateMatrix(gameState)
-    return grid[..., np.newaxis]
-
-
-gameStateTensor = gameStateTensorSimple
+gameStateTensor = gameStateMatrix
 
 
 def gameStateVectorTuple(gameState):

@@ -104,7 +104,7 @@ class DQNNetwork:
         from tensorflow.keras.optimizers import Adam, RMSprop
 
         self.inputShape = stateShape
-
+        print("Input shape:", self.inputShape)
         optimizer = (
             RMSprop(learning_rate=self.learningRate)
             if self.optimizerName == "RMSProp"
@@ -209,12 +209,11 @@ class DQNHistory:
 class DQNAgent(PacmanAgent):
     def __init__(
         self,
-        K=4,
+        K=1,
         gamma=0.99,
         minibatchSize=32,
         experienceSize=200000,
         clipValues=None,
-        recurrentNetwork=None,
         trainUpdates=1,
         **kwargs,
     ):
@@ -225,11 +224,11 @@ class DQNAgent(PacmanAgent):
         self.minibatchSize = int(minibatchSize)
         self.experienceSize = int(experienceSize)
         self.experienceReplay = [None] * int(experienceSize)
-        self.recurrentNetwork = False if recurrentNetwork == None else literal_eval(recurrentNetwork)
+        self.recurrentNetwork = self.K > 1
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
         self.trainUpdates = int(trainUpdates)
         self.numActions = 4 if self.noStopAction else 5
-        self.sameActionPolicy = self.K if self.sameActionPolicy >= 1 else 1
+        self.sameActionPolicy = 0
         self.network = DQNNetwork(
             numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, clipLoss=self.clipValues, **kwargs
         )
@@ -253,7 +252,7 @@ class DQNAgent(PacmanAgent):
 
     def getState(self, gameState):
         matrix = gameStateTensor(gameState)
-        matrix = (matrix - np.mean(matrix)) / np.std(matrix)
+        # matrix = (matrix - np.mean(matrix)) / np.std(matrix)
         return matrix
 
     def agentInit(self, gameState):
@@ -262,7 +261,7 @@ class DQNAgent(PacmanAgent):
         if self.recurrentNetwork:
             self.network.initNetworks(tuple([self.K]) + stateShape)
         else:
-            self.network.initNetworks((stateShape[0], stateShape[1], self.K))
+            self.network.initNetworks(stateShape)
         self.parameters.update(self.network.toJson())
 
     def updateExperience(self, state):
