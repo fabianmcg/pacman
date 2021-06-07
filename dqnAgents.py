@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from tensorflow.python.keras.engine import training
 from agent import PacmanAgent, PacmanState
 from agentUtil import *
 import tensorflow as tf
@@ -34,7 +35,7 @@ def convolutionalNetwork(convolutionLayers, denseLayers, stateShape, optimizer, 
     for layer in denseLayers[0:-1]:
         model.add(Dense(layer, activation="relu"))
     model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear"))
-    model.compile(loss=loss, optimizer=optimizer, metrics=["mean_squared_error", "accuracy"])
+    model.compile(loss=loss, optimizer=optimizer, metrics=["accuracy"])
     return model
 
 
@@ -56,7 +57,7 @@ def recurrentConvolutionalNetwork(
         model.add(Conv2D(layer[0], layer[1], strides=layer[2], activation=layer[3]))
     model.add(Flatten())
     for layer in denseLayers[0:-1]:
-        model.add(Dense(layer, activation="relu", kernel_initializer=tf.keras.initializers.HeUniform()))
+        model.add(Dense(layer, activation="relu"))
     model.add(tf.keras.layers.Dense(denseLayers[-1], activation="linear"))
     model.compile(loss=loss, optimizer=optimizer, metrics=["accuracy"])
     return model
@@ -96,7 +97,7 @@ class DQNNetwork:
         return str("{:0.6f}".format(self.fitHistory.history["loss"][0]))
 
     def __call__(self, x):
-        return self.QNetwork.predict(x)
+        return self.QNetwork(x).numpy()
 
     def initNetworks(self, stateShape):
         tf.device("/gpu:0")
@@ -120,20 +121,17 @@ class DQNNetwork:
         self.QNetwork.summary()
         self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
 
-    def updateNetworks(self, force=False):
-        if (self.it % self.C) == 0 or force:
-            self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
-
-    def learn(self, x, y, epochSize):
+    def learn(self, x, y, epochSize, updateIt):
         self.fitHistory = self.QNetwork.fit(x, y, verbose=0, steps_per_epoch=epochSize)
         self.it += 1
-        self.updateNetworks()
+        if (updateIt % self.C) == 0:
+            self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
 
     def inferQ(self, x):
-        return self.QNetwork.predict(x)
+        return self.QNetwork(x, training=False).numpy()
 
     def inferQQ(self, x):
-        return self.QQNetwork.predict(x)
+        return self.QQNetwork(x, training=False).numpy()
 
     def toJson(self):
         import json
@@ -291,7 +289,7 @@ class DQNAgent(PacmanAgent):
             rewards = np.clip(rewards, -1.0, 1.0)
         yy += rewards
         y[tuple(range(actions.size)), tuple(actions)] = yy
-        self.network.learn(x, y, len(miniBatchIndexes))
+        self.network.learn(x, y, len(miniBatchIndexes), self.episodeIt)
 
     def initState(self, agentState):
         if self.previousState == None:
