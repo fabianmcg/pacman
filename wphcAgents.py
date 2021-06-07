@@ -8,9 +8,9 @@ from phcAgents import PHCAgent
 
 
 class WPHCAgent(PHCAgent):
-    def __init__(self, delta=0.5, deltaLose=1, **kwargs):
+    def __init__(self, delta=0.5, deltaLose=0.75, **kwargs):
         super().__init__(delta=delta, **kwargs)
-        self.deltaLose = deltaLose
+        self.deltaLose = float(deltaLose)
         self.C = dict()
         self.PiAvg = dict()
         self.parameters.update(
