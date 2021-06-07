@@ -706,7 +706,7 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
 
         if record and not beQuiet:
             import pickle
-            filename = "recorded-game-{:03d}-{}.pkl".format(i + 1, '-'.join([str(t) for t in time.localtime()[1:6]]))
+            filename = "pacman-{:03d}.pkl".format(i + 1)
             if recordsPath != "":
                 file = recordsPath + "/" + filename
             with open(file, 'wb') as handle:

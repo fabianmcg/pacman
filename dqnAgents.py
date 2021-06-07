@@ -308,9 +308,7 @@ class DQNAgent(PacmanAgent):
                 self.updateExperience(self.gameHistory.getTransition())
 
     def learn(self, agentState, isTerminal):
-        if (self.episodeIt < self.numTraining) and (
-            ((self.network.it % self.trainUpdates) == 0) or (isTerminal and (self.episodeIt + 1) == self.numTraining)
-        ):
+        if (self.episodeIt < self.numTraining) and ((self.totalActionIt % self.trainUpdates) == 0):
             self.trainStep()
 
     def selectAction(self, agentState):

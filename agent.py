@@ -38,6 +38,7 @@ class PacmanAgent(Agent):
             "totalActions": 0,
             "totalTime": 0,
         }
+        self.totalActionIt = 0
         self.actionIt = 0
         self.episodeIt = 0
         self.epsilon = float(epsilon)
@@ -199,6 +200,7 @@ class PacmanAgent(Agent):
             action=DIR2CODE[action],
         )
         self.actionIt += 1
+        self.totalActionIt += 1
         if action not in actions:
             action = Directions.STOP
         return action
