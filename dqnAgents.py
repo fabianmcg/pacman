@@ -121,11 +121,13 @@ class DQNNetwork:
         self.QNetwork.summary()
         self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
 
-    def learn(self, x, y, epochSize, updateIt):
-        self.fitHistory = self.QNetwork.fit(x, y, verbose=0, steps_per_epoch=epochSize)
-        self.it += 1
+    def updateNetwork(self, updateIt):
         if (updateIt % self.C) == 0:
             self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
+
+    def learn(self, x, y, epochSize):
+        self.fitHistory = self.QNetwork.fit(x, y, verbose=0, steps_per_epoch=epochSize)
+        self.it += 1
 
     def inferQ(self, x):
         return self.QNetwork(x, training=False).numpy()
@@ -289,7 +291,7 @@ class DQNAgent(PacmanAgent):
             rewards = np.clip(rewards, -1.0, 1.0)
         yy += rewards
         y[tuple(range(actions.size)), tuple(actions)] = yy
-        self.network.learn(x, y, len(miniBatchIndexes), self.episodeIt)
+        self.network.learn(x, y, len(miniBatchIndexes))
 
     def initState(self, agentState):
         if self.previousState == None:
@@ -306,8 +308,10 @@ class DQNAgent(PacmanAgent):
                 self.updateExperience(self.gameHistory.getTransition())
 
     def learn(self, agentState, isTerminal):
-        if (self.episodeIt < self.numTraining) and ((self.totalActionIt % self.trainUpdates) == 0):
-            self.trainStep()
+        if (self.episodeIt < self.numTraining):
+            if ((self.totalActionIt % self.trainUpdates) == 0):
+                self.trainStep()
+            self.network.updateNetwork(self.totalActionIt)
 
     def selectAction(self, agentState):
         Q = self.network(np.array([self.gameHistory.phi()])).flatten()
