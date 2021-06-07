@@ -58,7 +58,7 @@ def gameStateMatrix(gameState):
     for ghost in gameState.getGhostStates():
         position = getPositionTuple(ghost.getPosition())
         grid[position] = max(6 - (ghost.scaredTimer > 0), grid[position])
-    return grid / 6.0
+    return grid.T / 6.0
 
 
 def gameStateTensorSimple(gameState):
