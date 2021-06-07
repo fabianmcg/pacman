@@ -18,43 +18,18 @@ def getPositionTuple(pos):
     return (int(pos[0] + 0.5), int(pos[1] + 0.5))
 
 
-def getVectorPosition(agent):
-    x, y = agent.getPosition()
-    d = DIR2CODE[agent.getDirection()]
-    return (x, y, d)
-
-
 def serializeGhostState(agent):
     x, y = getPositionTuple(agent.getPosition())
     return (x, y, agent.scaredTimer)
 
 
-from scipy import ndimage
-
-
-def gameStateMatrixScaled(gameState):
-    walls = np.array(gameState.getWalls().data, dtype=np.int16)
-    food = np.array(gameState.getFood().data, dtype=np.int16)
-    grid = 2 * food + walls
-    for capsule in gameState.data.capsules:
-        grid[getPositionTuple(capsule)] = 3
-    grid[getPositionTuple(gameState.getPacmanPosition())] = 4
-    for i, ghost in enumerate(gameState.getGhostStates()):
-        grid[getPositionTuple(ghost.getPosition())] += (2 - (ghost.scaredTimer > 0)) * 5 * (3 ** i)
-    x = 32 / grid.shape[0]
-    y = 32 / grid.shape[1]
-    grid = ndimage.zoom(grid, (x, y), order=0, grid_mode=True, mode="nearest")
-    grid = grid / ((3 ** len(gameState.getGhostStates())) * 5)
-    return grid[..., np.newaxis]
-
-
 def gameStateMatrix(gameState):
-    walls = np.array(gameState.getWalls().data, dtype=np.int16)
-    food = np.array(gameState.getFood().data, dtype=np.int16)
-    capsules = np.full(walls.shape, 0)
-    pacman = np.full(walls.shape, 0)
-    ghosts = np.full(walls.shape, 0)
-    scaredGhosts = np.full(walls.shape, 0)
+    walls = np.array(gameState.getWalls().data, dtype=np.int8)
+    food = np.array(gameState.getFood().data, dtype=np.int8)
+    capsules = np.full(walls.shape, 0, dtype=np.int8)
+    pacman = np.full(walls.shape, 0, dtype=np.int8)
+    ghosts = np.full(walls.shape, 0, dtype=np.int8)
+    scaredGhosts = np.full(walls.shape, 0, dtype=np.int8)
     for capsule in gameState.data.capsules:
         capsules[getPositionTuple(capsule)] = 1
     pacman[getPositionTuple(gameState.getPacmanPosition())] = 1

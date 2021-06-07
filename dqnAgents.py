@@ -160,12 +160,10 @@ class DQNTransition:
 
 
 class DQNHistory:
-    def __init__(self, K, isDiscrete, recurrent):
+    def __init__(self, K):
         self.K = K
-        self.isDiscrete = isDiscrete
-        self.recurrentOrder = recurrent
         self.stack = None
-        self.size = K * 2 if self.isDiscrete else self.K + 1
+        self.size = self.K + 1
 
     def init(self, agentState):
         self.stack = deque([agentState for k in range(self.size)])
@@ -179,27 +177,18 @@ class DQNHistory:
         if self.K == 1:
             return self.stack[1].state
         stack = list(self.stack)[-self.K :]
-        if self.recurrentOrder:
-            return np.array([state.state for state in stack])
-        return np.concatenate(tuple([state.state for state in stack]), axis=2)
+        return np.array([state.state for state in stack])
 
     def phiPrev(self):
         if self.K == 1:
             return self.stack[0].state
         stack = list(self.stack)[: self.K]
-        if self.recurrentOrder:
-            return np.array([state.state for state in stack])
-        return np.concatenate(tuple([state.state for state in stack]), axis=2)
+        return np.array([state.state for state in stack])
 
     def reward(self):
-        if self.isDiscrete:
-            stack = list(self.stack)[-self.K :]
-            return np.sum(np.array([state.reward for state in stack]))
         return self.stack[-1].reward
 
     def action(self):
-        if self.isDiscrete:
-            return self.stack[self.K].action
         return self.stack[-1].action
 
     def getTransition(self):
@@ -228,11 +217,10 @@ class DQNAgent(PacmanAgent):
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
         self.trainUpdates = int(trainUpdates)
         self.numActions = 4 if self.noStopAction else 5
-        self.sameActionPolicy = 0
         self.network = DQNNetwork(
             numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, clipLoss=self.clipValues, **kwargs
         )
-        self.gameHistory = DQNHistory(self.K, self.sameActionPolicy > 1, self.recurrentNetwork)
+        self.gameHistory = DQNHistory(self.K)
         self.parameters.update(
             {
                 "K": self.K,
@@ -244,7 +232,6 @@ class DQNAgent(PacmanAgent):
                 "numAction": self.numActions,
             }
         )
-        self.parameters["sameActionPolicy"] = self.sameActionPolicy
 
     def updateJson(self):
         self.parameters["learningEpochs"] = self.network.it
@@ -298,15 +285,9 @@ class DQNAgent(PacmanAgent):
         else:
             self.gameHistory.update(agentState)
         if self.episodeIt < self.numTraining and self.previousState != None:
-            if (self.sameActionPolicy <= 1) or ((self.actionIt % self.sameActionPolicy) == 0):
-                self.updateExperience(self.gameHistory.getTransition())
-            elif agentState.isTerminal:
-                left = self.sameActionPolicy - (self.actionIt % self.sameActionPolicy)
-                for k in range(left):
-                    self.gameHistory.update(PacmanState(state=agentState.state, reward=0, isTerminal=True))
-                self.updateExperience(self.gameHistory.getTransition())
-
-    def learn(self, agentState, isTerminal):
+            self.updateExperience(self.gameHistory.getTransition())
+            
+    def learn(self, agentState):
         if (self.episodeIt < self.numTraining):
             if ((self.totalActionIt % self.trainUpdates) == 0):
                 self.trainStep()

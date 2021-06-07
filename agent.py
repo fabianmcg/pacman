@@ -29,7 +29,6 @@ class PacmanAgent(Agent):
         finalEpsilon=0.005,
         finalTrainingEpsilon=0.1,
         noStopAction=None,
-        sameActionPolicy = 0,
         **kwargs,
     ):
         self.index = 0
@@ -48,7 +47,6 @@ class PacmanAgent(Agent):
         self.finalEpsilon = float(finalEpsilon)
         self.finalTrainingEpsilon = float(finalTrainingEpsilon)
         self.noStopAction = True if noStopAction == None else literal_eval(noStopAction)
-        self.sameActionPolicy = int(sameActionPolicy)
         self.rewards = Rewards(**kwargs)
         self.random = np.random.default_rng(int(kwargs["seed"])) if "seed" in kwargs else np.random.default_rng(12345)
         self.epsilonStep = (self.epsilon - self.finalTrainingEpsilon) / (
@@ -66,7 +64,6 @@ class PacmanAgent(Agent):
             "finalTrainingEpsilon": self.finalTrainingEpsilon,
             "epsilonStep": self.epsilonStep,
             "noStopAction": self.noStopAction,
-            "sameActionPolicy": self.sameActionPolicy,
             "seed": int(kwargs["seed"]) if "seed" in kwargs else 12345,
         }
 
@@ -82,7 +79,7 @@ class PacmanAgent(Agent):
     def initState(self, agentState):
         pass
 
-    def learn(self, agentState, isTerminal):
+    def learn(self, agentState):
         pass
 
     def selectAction(self, agentState):
@@ -116,6 +113,7 @@ class PacmanAgent(Agent):
             print("\t{: <20}{:}".format("Total wins:", np.sum(wins)))
             print("\t{: <20}{:0.2f}".format("Total time:", self.metrics["totalTime"]))
             print("\t{: <20}{}".format("Total actions:", self.metrics["totalActions"]))
+            print("\t{: <20}{}".format("Total actions:", self.totalActionIt))
             print("\t{: <20}{:0.2f}".format("Win rate:", np.mean(wins[-meanIts:]) * 100.0))
             print("\t{: <20}{:0.2f}".format("Sup score:", np.amax(scores)))
             print("\t{: <20}{:0.2f}".format("Max score:", np.amax(scores[-meanIts:])))
@@ -153,7 +151,7 @@ class PacmanAgent(Agent):
         )
         self.initState(state)
         if self.previousState != None and self.episodeIt >= self.numExplore:
-            self.learn(state, True)
+            self.learn(state)
         self.previousState = None
         if self.episodeIt < self.numTraining and self.episodeIt >= self.numExplore:
             self.epsilon -= self.epsilonStep
@@ -181,14 +179,12 @@ class PacmanAgent(Agent):
         )
         self.initState(state)
         if self.previousState != None and self.episodeIt >= self.numExplore:
-            self.learn(state, False)
+            self.learn(state)
         return state
 
     def getAction(self, state):
         actions = state.validActions
-        if (self.sameActionPolicy > 1) and ((self.actionIt % self.sameActionPolicy) != 0):
-            action =  DIRECTIONS[self.previousState.action]
-        elif self.epsilon > 0.0 and self.random.choice([True, False], p=self.epsilonArray):
+        if self.epsilon > 0.0 and self.random.choice([True, False], p=self.epsilonArray):
             action = actions[self.random.integers(0, len(actions))]
         else:
             action = self.selectAction(state)
