@@ -620,11 +620,8 @@ def readCommand(argv):
     if options.gameToReplay != None:
         print('Replaying recorded game %s.' % options.gameToReplay)
         import pickle
-        f = open(options.gameToReplay)
-        try:
-            recorded = pickle.load(f)
-        finally:
-            f.close()
+        with open(options.gameToReplay, 'rb') as handle:
+            recorded = pickle.load(handle)
         recorded['display'] = args['display']
         replayGame(**recorded)
         sys.exit(0)
@@ -709,14 +706,12 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
 
         if record and not beQuiet:
             import pickle
-            file = ('recorded-game-%d' % (i + 1)) + \
-                '-'.join([str(t) for t in time.localtime()[1:6]])
+            filename = "recorded-game-{:03d}-{}.pkl".format(i + 1, '-'.join([str(t) for t in time.localtime()[1:6]]))
             if recordsPath != "":
-                file = recordsPath + "/" + file
-            f = open(file, 'wb')
-            components = {'layout': layout, 'actions': game.moveHistory}
-            pickle.dump(components, f)
-            f.close()
+                file = recordsPath + "/" + filename
+            with open(file, 'wb') as handle:
+                components = {'layout': layout, 'actions': game.moveHistory}
+                pickle.dump(components, handle, protocol=pickle.HIGHEST_PROTOCOL)
             
     stopTime = time.perf_counter()
     print("Total elapsed time: {:.2f}".format(stopTime - startTime))

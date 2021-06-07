@@ -2,14 +2,17 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from tensorflow.python.eager.backprop_util import IsTrainable
 from agent import PacmanAgent, PacmanState
 from agentUtil import *
 import tensorflow as tf
 from ast import literal_eval
 from collections import deque
 
-from game import AgentState
+
+class ClippedMeanSquaredError(tf.keras.losses.Loss):
+    def call(self, y_true, y_pred):
+        error = tf.clip_by_value(y_pred - y_true, clip_value_min=-1, clip_value_max=1)
+        return tf.reduce_mean(tf.square(error), axis=-1)
 
 
 def convolutionalNetwork(convolutionLayers, denseLayers, stateShape, optimizer, loss=tf.losses.MeanSquaredError()):
@@ -69,6 +72,7 @@ class DQNNetwork:
         arch=None,
         convArch=None,
         optimizer="RMSProp",
+        clipLoss=False,
         **kwargs,
     ):
         self.it = 0
@@ -86,6 +90,7 @@ class DQNNetwork:
         )
         self.optimizerName = optimizer
         self.inputShape = None
+        self.lossFunction = ClippedMeanSquaredError() if clipLoss else tf.losses.MeanSquaredError()
 
     def __str__(self) -> str:
         return str("{:0.6f}".format(self.fitHistory.history["loss"][0]))
@@ -106,17 +111,11 @@ class DQNNetwork:
         )
         if self.recurrentNetwork:
             self.QNetwork = recurrentConvolutionalNetwork(
-                self.convolutionalArchitecture,
-                self.architecture,
-                stateShape,
-                optimizer,
+                self.convolutionalArchitecture, self.architecture, stateShape, optimizer, self.lossFunction
             )
         else:
             self.QNetwork = convolutionalNetwork(
-                self.convolutionalArchitecture,
-                self.architecture,
-                stateShape,
-                optimizer,
+                self.convolutionalArchitecture, self.architecture, stateShape, optimizer, self.lossFunction
             )
         self.QNetwork.summary()
         self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
@@ -230,8 +229,10 @@ class DQNAgent(PacmanAgent):
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
         self.trainUpdates = int(trainUpdates)
         self.numActions = 4 if self.noStopAction else 5
-        self.sameActionPolicy = self.K if self.sameActionPolicy > 1 else 1
-        self.network = DQNNetwork(numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, **kwargs)
+        self.sameActionPolicy = self.K if self.sameActionPolicy >= 1 else 1
+        self.network = DQNNetwork(
+            numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, clipLoss=self.clipValues, **kwargs
+        )
         self.gameHistory = DQNHistory(self.K, self.sameActionPolicy > 1, self.recurrentNetwork)
         self.parameters.update(
             {
@@ -276,7 +277,7 @@ class DQNAgent(PacmanAgent):
 
     def trainStep(self):
         if self.experienceIt == 0:
-            return
+            return None
         miniBatchIndexes = self.selectMiniBatch()
         x = np.array([self.experienceReplay[k].state for k in miniBatchIndexes])
         xx = np.array([self.experienceReplay[k].nextState for k in miniBatchIndexes])
@@ -286,9 +287,9 @@ class DQNAgent(PacmanAgent):
         y = self.network.inferQ(x)
         yy = np.max(self.network.inferQQ(xx), axis=1) * self.gamma
         yy[isTerminal == True] = 0.0
-        yy += rewards
         if self.clipValues:
-            yy = np.clip(yy, -1.0, 1.0)
+            rewards = np.clip(rewards, -1.0, 1.0)
+        yy += rewards
         y[tuple(range(actions.size)), tuple(actions)] = yy
         self.network.learn(x, y, len(miniBatchIndexes))
 
