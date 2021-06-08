@@ -53,6 +53,7 @@ import time
 import random
 import os
 import json
+import pathlib as Path
 
 ###################################################
 # YOUR INTERFACE TO THE PACMAN WORLD: A GameState #
@@ -556,9 +557,10 @@ def readCommand(argv):
     parser.add_option('--timeout', dest='timeout', type='int',
                       help=default('Maximum length of time an agent can spend computing in a single game'), default=30)
     parser.add_option('--records-path', dest='recordsPath', type='str',
-                      help=default('Path to store the results'), default="")
+                      help=default('Path to store the results'), default="pacman-results")
     parser.add_option('-i', '--gameInfo', dest='gameInfoPath', type='str',
                       help=default('Game information filename'), default="game-info.json")
+    parser.add_option('--full-game-info-path', dest='fullGamePath', action='store_true')
     parser.add_option('--video', dest='video', type='str',
                       help=default('Video filename'), default=None)
 
@@ -566,8 +568,11 @@ def readCommand(argv):
     if len(otherjunk) != 0:
         raise Exception('Command line input not understood: ' + str(otherjunk))
     args = dict()
-    args["recordsPath"] = options.recordsPath
-    args["gameInfoPath"] = options.gameInfoPath
+
+    if options.recordsPath != '':
+        Path.Path(options.recordsPath).mkdir(parents=True, exist_ok=True)
+    args["recordsPath"] = Path.PurePath(options.recordsPath).as_posix()
+    args["gameInfoPath"] = options.gameInfoPath if options.fullGamePath else Path.PurePath(options.recordsPath, options.gameInfoPath).as_posix()
     
     # Fix the random seed
     if options.fixRandomSeed:
@@ -625,7 +630,7 @@ def readCommand(argv):
         recorded['display'] = args['display']
         replayGame(**recorded)
         sys.exit(0)
-
+    args['argParse'] = vars(options)
     return args
 
 
@@ -678,7 +683,7 @@ def replayGame(layout, actions, display):
     display.finish()
 
 
-def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, recordsPath="", gameInfoPath = ""):
+def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, recordsPath="", gameInfoPath = "", argParse = None):
     import __main__
     __main__.__dict__['_display'] = display
 
@@ -708,18 +713,24 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
             import pickle
             filename = "pacman-{:03d}.pkl".format(i + 1)
             if recordsPath != "":
-                file = recordsPath + "/" + filename
-            with open(file, 'wb') as handle:
-                components = {'layout': layout, 'actions': game.moveHistory}
-                pickle.dump(components, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                file = Path.PurePath(recordsPath, filename).as_posix()
+            try:
+                with open(file, 'wb') as handle:
+                    components = {'layout': layout, 'actions': game.moveHistory}
+                    pickle.dump(components, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            except Exception as exc:
+                print(exc)
             
     stopTime = time.perf_counter()
     print("Total elapsed time: {:.2f}".format(stopTime - startTime))
     if "toJson" in dir(pacman):
-        gameInfo = pacman.toJson()
+        gameInfo = {"cmdArgs": argParse}
+        gameInfo.update(pacman.toJson())
         gameInfo["parameters"].update({"totalTime" : stopTime - startTime, "numGames" : numGames})
         with open(gameInfoPath, 'w') as outfile:
             json.dump(gameInfo, outfile, indent=1)
+    if "save" in dir(pacman):
+        pacman.save()
     if (numGames-numTraining) > 0:
         scores = [game.state.getScore() for game in games]
         wins = [game.state.isWin() for game in games]

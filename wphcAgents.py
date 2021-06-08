@@ -28,7 +28,7 @@ class WPHCAgent(PHCAgent):
             self.C[state] = 0
             self.PiAvg[state] = np.full(numActions, 1.0 / numActions)
 
-    def learn(self, agentState, isTerminal):
+    def learn(self, agentState):
         previousState = self.previousState.state
         previousAction = self.previousState.validActionsIndexes.index(self.previousState.action)
         numActions = len(self.previousState.validActionsIndexes)
