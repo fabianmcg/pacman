@@ -82,7 +82,7 @@ class PacmanAgent(Agent):
     def initState(self, agentState):
         pass
 
-    def learn(self, agentState, isTerminal):
+    def learn(self, agentState):
         pass
 
     def selectAction(self, agentState):
@@ -153,7 +153,7 @@ class PacmanAgent(Agent):
         )
         self.initState(state)
         if self.previousState != None and self.episodeIt >= self.numExplore:
-            self.learn(state, True)
+            self.learn(state)
         self.previousState = None
         if self.episodeIt < self.numTraining and self.episodeIt >= self.numExplore:
             self.epsilon -= self.epsilonStep
@@ -181,7 +181,7 @@ class PacmanAgent(Agent):
         )
         self.initState(state)
         if self.previousState != None and self.episodeIt >= self.numExplore:
-            self.learn(state, False)
+            self.learn(state)
         return state
 
     def getAction(self, state):

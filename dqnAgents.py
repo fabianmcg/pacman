@@ -74,6 +74,7 @@ class DQNNetwork:
         convArch=None,
         optimizer="RMSProp",
         clipLoss=False,
+        sgdBatchSize=4,
         **kwargs,
     ):
         self.it = 0
@@ -81,6 +82,7 @@ class DQNNetwork:
         self.numActions = numActions
         self.learningRate = float(learningRate)
         self.recurrentNetwork = recurrentNetwork
+        self.sgdBatchSize = int(sgdBatchSize)
         self.QNetwork = None
         self.QQNetwork = None
         self.fitHistory = None
@@ -121,13 +123,45 @@ class DQNNetwork:
         self.QNetwork.summary()
         self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
 
-    def updateNetwork(self, updateIt):
-        if (updateIt % self.C) == 0:
+    def save(self, Qfilename, QQfilename=""):
+        try:
+            self.QNetwork.save(Qfilename, save_format="tf")
+            if QQfilename != "":
+                self.QQNetwork.save(QQfilename, save_format="tf")
+        except Exception as exc:
+            print(exc)
+
+    def load(self, Qfilename, QQfilename=None):
+        tf.device("/gpu:0")
+        from tensorflow.keras.optimizers import Adam, RMSprop
+
+        self.QNetwork = tf.keras.models.load_model(
+            Qfilename, custom_objects={type(self.lossFunction).__name__: self.lossFunction}
+        )
+        optimizer = (
+            RMSprop(learning_rate=self.learningRate)
+            if self.optimizerName == "RMSProp"
+            else Adam(learning_rate=self.learningRate)
+        )
+        self.QNetwork.compile(optimizer=optimizer, loss=self.lossFunction, metrics=["accuracy"])
+        if QQfilename != None:
+            self.QQNetwork = tf.keras.models.load_model(
+                QQfilename, custom_objects={type(self.lossFunction).__name__: self.lossFunction}
+            )
+            self.QQNetwork.compile(optimizer=optimizer, loss=self.lossFunction, metrics=["accuracy"])
+        else:
+            self.updateNetwork(0, True)
+
+    def updateNetwork(self, updateIt, force=False):
+        if ((updateIt % self.C) == 0) or force:
             self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
 
-    def learn(self, x, y, epochSize):
-        self.fitHistory = self.QNetwork.fit(x, y, verbose=0, steps_per_epoch=epochSize)
+    def learn(self, x, y):
+        self.fitHistory = self.QNetwork.fit(x, y, verbose=0, batch_size=self.sgdBatchSize)
         self.it += 1
+
+    def learnQ(self, **kwargs):
+        self.fitHistory = self.QNetwork.fit(**kwargs)
 
     def inferQ(self, x):
         return self.QNetwork(x, training=False).numpy()
@@ -216,6 +250,9 @@ class DQNAgent(PacmanAgent):
         clipValues=None,
         recurrentNetwork=None,
         trainUpdates=1,
+        Qname="policy-network",
+        QQname="target-network",
+        fromSaved=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -225,9 +262,12 @@ class DQNAgent(PacmanAgent):
         self.minibatchSize = int(minibatchSize)
         self.experienceSize = int(experienceSize)
         self.experienceReplay = [None] * int(experienceSize)
-        self.recurrentNetwork = False if recurrentNetwork == None else literal_eval(recurrentNetwork)
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
+        self.recurrentNetwork = False if recurrentNetwork == None else literal_eval(recurrentNetwork)
         self.trainUpdates = int(trainUpdates)
+        self.Qname = Qname
+        self.QQname = QQname
+        self.fromSaved = False if fromSaved == None else literal_eval(fromSaved)
         self.numActions = 4 if self.noStopAction else 5
         self.sameActionPolicy = self.K if self.sameActionPolicy >= 1 else 1
         self.network = DQNNetwork(
@@ -243,6 +283,9 @@ class DQNAgent(PacmanAgent):
                 "clipValues": self.clipValues,
                 "experience": 0,
                 "numAction": self.numActions,
+                "Qname": self.Qname,
+                "QQname": self.QQname,
+                "fromSaved": self.fromSaved,
             }
         )
         self.parameters["sameActionPolicy"] = self.sameActionPolicy
@@ -251,12 +294,18 @@ class DQNAgent(PacmanAgent):
         self.parameters["learningEpochs"] = self.network.it
         self.parameters["experience"] = self.experienceIt
 
+    def save(self):
+        self.network.save(self.Qname, self.QQname)
+
     def getState(self, gameState):
         matrix = gameStateTensor(gameState)
         matrix = (matrix - np.mean(matrix)) / np.std(matrix)
         return matrix
 
     def agentInit(self, gameState):
+        if self.fromSaved:
+            self.network.load(self.Qname, self.QQname)
+            return
         state = self.getState(gameState)
         stateShape = state.shape
         if self.recurrentNetwork:
@@ -291,7 +340,7 @@ class DQNAgent(PacmanAgent):
             rewards = np.clip(rewards, -1.0, 1.0)
         yy += rewards
         y[tuple(range(actions.size)), tuple(actions)] = yy
-        self.network.learn(x, y, len(miniBatchIndexes))
+        self.network.learn(x, y)
 
     def initState(self, agentState):
         if self.previousState == None:
@@ -307,9 +356,9 @@ class DQNAgent(PacmanAgent):
                     self.gameHistory.update(PacmanState(state=agentState.state, reward=0, isTerminal=True))
                 self.updateExperience(self.gameHistory.getTransition())
 
-    def learn(self, agentState, isTerminal):
-        if (self.episodeIt < self.numTraining):
-            if ((self.totalActionIt % self.trainUpdates) == 0):
+    def learn(self, agentState):
+        if self.episodeIt < self.numTraining:
+            if (self.totalActionIt % self.trainUpdates) == 0:
                 self.trainStep()
             self.network.updateNetwork(self.totalActionIt)
 
