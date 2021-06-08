@@ -4,11 +4,26 @@
 
 import argparse
 import subprocess
-import os
-import numpy as  np
+from pathlib import PurePath, Path
 
-agents = ["PHCAgent", "WPHCAgent", "DQNAgent"]
-layouts = ["capsuleClassic", "powerClassic", "smallClassic", "contestClassic", "minimaxClassic", "openClassic", "originalClassic", "testClassic", "trickyClassic", "mediumClassic", "trappedClassic"]
+from game import Configuration
+
+
+agents = ["PHCAgent", "WPHCAgent", "DQNAgent", "WDQNAgent"]
+layouts = [
+    "capsuleClassic",
+    "powerClassic",
+    "smallClassic",
+    "contestClassic",
+    "minimaxClassic",
+    "openClassic",
+    "originalClassic",
+    "testClassic",
+    "trickyClassic",
+    "mediumClassic",
+    "trappedClassic",
+]
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -17,132 +32,157 @@ def parse_args():
         formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=60),
     )
     parser.add_argument(
-        "-a",
-        "--agents",
-        metavar="<agents>",
-        nargs='+',
-        type=int,
-        default=[0],
-        help="agents to try",
-    )
-    parser.add_argument(
-        "-l",
-        "--layouts",
-        metavar="<layouts>",
-        nargs='+',
-        type=int,
-        default=[7],
-        help="layouts to try",
-    )
-    parser.add_argument(
-        "-c",
-        "--classes",
-        metavar="<class>",
-        type=str,
-        choices=["single", "small", "medium", "large"],
-        default="single",
-        help="class",
-    )
-    parser.add_argument(
-        "-n",
-        "--number-of-games",
-        metavar="<number-of-games>",
+        "-g",
+        "--games",
+        dest="ng",
+        metavar="<no. games>",
         type=int,
         default=1,
-        help="number of games",
+        help="Number of games",
     )
     parser.add_argument(
         "-t",
-        "--number-of-training-games",
-        metavar="<number-of-training-games>",
-        nargs='+',
+        "--training-games",
+        dest="nt",
+        metavar="<no. training games>",
         type=int,
-        default=[1],
-        help="number of training games",
+        default=1,
+        help="Number of training games",
     )
     parser.add_argument(
-        "-r",
-        "--learning-rate",
-        metavar="<learning-rate>",
-        nargs='+',
-        type=float,
-        default=[0.1],
-        help="learning rate",
-    )
-    parser.add_argument(
-        "-g",
-        "--gamma",
-        metavar="<gamma>",
-        nargs='+',
-        type=float,
-        default=[0.75],
-        help="gamma",
-    )
-    parser.add_argument(
-        "-d",
-        "--delta",
-        metavar="<delta>",
-        nargs='+',
-        type=float,
-        default=[0.25],
-        help="delta or delta win",
-    )
-    parser.add_argument(
-        "-D",
-        "--delta-lose",
-        metavar="<delta lose>",
-        nargs='+',
-        type=float,
-        default=[0.75],
-        help="delta lose",
+        "-o",
+        "--out",
+        dest="out",
+        metavar="<output folder>",
+        type=str,
+        default="pacman-runs",
+        help="Output folder",
     )
     parser.add_argument(
         "-p",
         "--print",
+        dest="print",
         action="store_true",
-        help="print option mapping",
+        help="Print option mapping",
     )
     args = parser.parse_args()
     return args
 
-def run(args):
-    for dl in args.delta_lose:
-        for lr in args.learning_rate:
-            for g in args.gamma:
-                for d in args.delta:
-                    for layout in args.layouts:
-                        for agent in args.agents:
-                            for ntg in args.number_of_training_games:
-                                fname = "{}-{}-{}-{}-{}-{}-{}".format(agents[agent], layouts[layout], ntg, lr, g, d, dl)
-                                try:
-                                    os.mkdir(fname)
-                                except:
-                                    pass
-                                pargs = ["python3", "pacman.py", "-l", layouts[layout], "-p", agents[agent], "-n", ntg + args.number_of_games, "-x", ntg, 
-                                    "-g", "DirectionalGhost", "-r", "-q", "-a", "a={},d={},g={},dl={}".format(lr, d, g, dl), "--path", fname]
-                                pargs = list(map(str, pargs))
-                                result = subprocess.run(
-                                    pargs, capture_output=True, text=True
-                                )
-                                with open(fname + "/stdout.txt", "w") as file:
-                                    print(result.stdout, file=file)
-                                with open(fname + "/stderr.txt", "w") as file:
-                                    print(result.stderr, file=file)
-                                print(fname,"\n",result.stdout)
-def classes(args):
-    if args.classes == "large":
-        args.agents = [0, 1]
-        args.layouts = [7, 5, 2]
-        args.number_of_training_games = [*range(1000, 11000, 1000)]
-        args.learning_rate = np.linspace(0.1, 1., 2, endpoint=False)
-        args.gamma = np.linspace(0.1, 1., 2, endpoint=False)
-        args.delta = np.linspace(0.1, 0.5, 2, endpoint=False)
-        args.delta_lose = 2 * args.delta
+
+class RunConfig:
+    def __init__(
+        self,
+        agent=None,
+        ghost=None,
+        layout=None,
+        numGames=None,
+        numTraining=None,
+        agentOpts={},
+    ):
+        self.agent = agent
+        self.ghost = ghost
+        self.layout = layout
+        self.numGames = numGames
+        self.numTraining = numTraining
+        self.agentOpts = agentOpts.copy()
+
+    def makeCmd(self, path="", numGames=None, numTraining=None, agent=None, ghost=None, layout=None):
+        self.agent = self.agent if agent == None else agent
+        self.ghost = self.ghost if ghost == None else ghost
+        self.layout = self.layout if layout == None else layout
+        self.numGames = self.numGames if numGames == None else numGames
+        self.numTraining = self.numTraining if numTraining == None else numTraining
+        gamePath = "{}{}-{}".format(
+            self.agent, "-" + self.ghost if self.ghost != None else "", self.layout)
+        gamePath = PurePath(path, gamePath).as_posix()
+        agentArgs = ""
+        for k in self.agentOpts:
+            option = (
+                PurePath(gamePath, self.agentOpts[k]).as_posix()
+                if (k == "Qname" or k == "QQname")
+                else self.agentOpts[k]
+            )
+            if option == None:
+                continue
+            agentArgs += "{}={}".format(k, option) if len(agentArgs) == 0 else ",{}={}".format(k, option)
+
+        cmd = [
+            "python3",
+            "pacman.py",
+            "-q",
+            "-r",
+            "-s",
+            gamePath,
+            "-p",
+            self.agent,
+            "-l",
+            self.layout,
+            "-n",
+            str(self.numGames),
+            "-x",
+            str(self.numTraining),
+            "-a",
+            agentArgs,
+        ]
+        if self.ghost != None:
+            cmd.extend(["-g", self.ghost])
+        return cmd, gamePath
+
+    def __call__(self, run=True, path="", numGames=None, numTraining=None, agent=None, ghost=None, layout=None):
+        try:
+            cmd, gamePath = self.makeCmd(path, numGames, numTraining, agent, ghost, layout)
+            if not run:
+                print("cmd:\n\t", " ".join(cmd))
+                return None
+            Path(gamePath).mkdir(parents=True, exist_ok=True)
+            cmdOut = subprocess.run(cmd, capture_output=True, text=True)
+            with open(PurePath(gamePath, "stdout.txt").as_posix(), "w") as file:
+                print(cmdOut.stdout, file=file)
+            with open(PurePath(gamePath, "stderr.txt").as_posix(), "w") as file:
+                print(cmdOut.stderr, file=file)
+            with open(PurePath(gamePath, "cmd.sh").as_posix(), "w") as file:
+                print("#!/bin/bash", file=file)
+                print(" ".join(cmd), file=file)
+        except Exception as exc:
+            print(exc)
+
+    @staticmethod
+    def create(configuration, **kwargs):
+        options = configuration.copy()
+        options.update(**kwargs)
+        return RunConfig(agentOpts=options)
+
+
+baseConfig = {
+    "printSteps": 500,
+    "epsilon": 1.0,
+    "finalEpsilon": 0,
+    "finalTrainingEpsilon": 0.1,
+    "noStopAction": None,
+    "numExplore": 0,
+    "sameActionPolicy": 0,
+    "clipReward": False,
+}
+
+def runPHC(args):
+    layoutsToRun = ["testClassic"]
+    agentsToRun = ["PHCAgent", "WPHCAgent"]
+    ghostsToRun = [None, "DirectionalGhost"]
+    deltaConfigs = [{"delta" : '0.2', "deltaLose" : '0.8'}, {"delta" : '0.6', "deltaLose" : '0.8'}]
+    alphaConfigs = ['0.25', '0.75']
+    gammaConfigs = ['0.75', '0.95']
+    for layout in layoutsToRun:
+        for agent in agentsToRun:
+            for ghost in ghostsToRun:
+                for delta in deltaConfigs:
+                    for alpha in alphaConfigs:
+                        for gamma in gammaConfigs:
+                            configuration = RunConfig.create(baseConfig, delta=delta['delta'], deltaLose=delta['deltaLose'], alpha=alpha, gamma=gamma)
+                            configuration(not args.print, args.out, numGames=(args.ng + args.nt), numTraining=args.nt, agent=agent, ghost=ghost, layout=layout)
 
 def main():
     args = parse_args()
-    classes(args)
-    run(args)
+    runPHC(args)
 
 if __name__ == "__main__":
     main()

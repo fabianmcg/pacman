@@ -556,12 +556,12 @@ def readCommand(argv):
                       help='Turns on exception handling and timeouts during games', default=False)
     parser.add_option('--timeout', dest='timeout', type='int',
                       help=default('Maximum length of time an agent can spend computing in a single game'), default=30)
-    parser.add_option('--records-path', dest='recordsPath', type='str',
+    parser.add_option('-s', '--store-path', dest='gamesPath', type='str',
                       help=default('Path to store the results'), default="pacman-results")
     parser.add_option('-i', '--gameInfo', dest='gameInfoPath', type='str',
                       help=default('Game information filename'), default="game-info.json")
-    parser.add_option('--full-game-info-path', dest='fullGamePath', action='store_true')
-    parser.add_option('--video', dest='video', type='str',
+    parser.add_option('--full-info-path', dest='fullGamePath', action='store_true')
+    parser.add_option('-v', '--video', dest='video', type='str',
                       help=default('Video filename'), default=None)
 
     options, otherjunk = parser.parse_args(argv)
@@ -569,10 +569,10 @@ def readCommand(argv):
         raise Exception('Command line input not understood: ' + str(otherjunk))
     args = dict()
 
-    if options.recordsPath != '':
-        Path.Path(options.recordsPath).mkdir(parents=True, exist_ok=True)
-    args["recordsPath"] = Path.PurePath(options.recordsPath).as_posix()
-    args["gameInfoPath"] = options.gameInfoPath if options.fullGamePath else Path.PurePath(options.recordsPath, options.gameInfoPath).as_posix()
+    if options.gamesPath != '':
+        Path.Path(options.gamesPath).mkdir(parents=True, exist_ok=True)
+    args["gamesPath"] = Path.PurePath(options.gamesPath).as_posix()
+    args["gameInfoPath"] = options.gameInfoPath if options.fullGamePath else Path.PurePath(options.gamesPath, options.gameInfoPath).as_posix()
     
     # Fix the random seed
     if options.fixRandomSeed:
@@ -683,7 +683,7 @@ def replayGame(layout, actions, display):
     display.finish()
 
 
-def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, recordsPath="", gameInfoPath = "", argParse = None):
+def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, catchExceptions=False, timeout=30, gamesPath="", gameInfoPath = "", argParse = None):
     import __main__
     __main__.__dict__['_display'] = display
 
@@ -712,8 +712,8 @@ def runGames(layout, pacman, ghosts, display, numGames, record, numTraining=0, c
         if record and not beQuiet:
             import pickle
             filename = "pacman-{:03d}.pkl".format(i + 1)
-            if recordsPath != "":
-                file = Path.PurePath(recordsPath, filename).as_posix()
+            if gamesPath != "":
+                file = Path.PurePath(gamesPath, filename).as_posix()
             try:
                 with open(file, 'wb') as handle:
                     components = {'layout': layout, 'actions': game.moveHistory}
