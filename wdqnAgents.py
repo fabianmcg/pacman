@@ -78,6 +78,7 @@ class WDQNAgent(DQNAgent):
         self.whpcActions = 0
         self.numEpochs = int(numEpochs)
         self.parameters["numEpochs"] = self.numEpochs
+        self.updateEpsilon = True
 
     def getState(self, gameState):
         matrix = gameStateTensor(gameState)
