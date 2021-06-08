@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from tensorflow.python.keras.engine import training
 from agent import PacmanAgent, PacmanState
 from agentUtil import *
 import tensorflow as tf
@@ -151,9 +150,10 @@ class DQNNetwork:
             self.QQNetwork.compile(optimizer=optimizer, loss=self.lossFunction, metrics=["accuracy"])
         else:
             self.updateNetwork(0, True)
+        self.QNetwork.summary()
 
-    def updateNetwork(self, updateIt, force=False):
-        if ((updateIt % self.C) == 0) or force:
+    def updateNetwork(self, updateIt):
+        if (updateIt % self.C) == 0:
             self.QQNetwork = tf.keras.models.clone_model(self.QNetwork)
 
     def learn(self, x, y):
@@ -180,6 +180,7 @@ class DQNNetwork:
             "inputShape": self.inputShape,
             "optimizerName": self.optimizerName,
             "recurrentNetwork": self.recurrentNetwork,
+            "sgdBatchSize": self.sgdBatchSize,
             "network": json.loads(self.QNetwork.to_json()),
         }
 
@@ -244,7 +245,7 @@ class DQNAgent(PacmanAgent):
     def __init__(
         self,
         K=4,
-        gamma=0.99,
+        gamma=0.95,
         minibatchSize=32,
         experienceSize=200000,
         clipValues=None,
@@ -263,7 +264,11 @@ class DQNAgent(PacmanAgent):
         self.experienceSize = int(experienceSize)
         self.experienceReplay = [None] * int(experienceSize)
         self.clipValues = True if clipValues == None else literal_eval(clipValues)
-        self.recurrentNetwork = False if recurrentNetwork == None else literal_eval(recurrentNetwork)
+        self.recurrentNetwork = (
+            False
+            if recurrentNetwork == None
+            else (recurrentNetwork if not isinstance(recurrentNetwork, str) else literal_eval(recurrentNetwork))
+        )
         self.trainUpdates = int(trainUpdates)
         self.Qname = Qname
         self.QQname = QQname
@@ -278,6 +283,7 @@ class DQNAgent(PacmanAgent):
             {
                 "K": self.K,
                 "gamma": self.gamma,
+                "recurrentNetwork": self.recurrentNetwork,
                 "experienceSize": self.experienceSize,
                 "minibatchSize": self.minibatchSize,
                 "clipValues": self.clipValues,

@@ -29,7 +29,7 @@ class PacmanAgent(Agent):
         finalEpsilon=0.005,
         finalTrainingEpsilon=0.1,
         noStopAction=None,
-        sameActionPolicy = 0,
+        sameActionPolicy=0,
         **kwargs,
     ):
         self.index = 0
@@ -58,6 +58,7 @@ class PacmanAgent(Agent):
         self.startTime = None
         self.startGameTime = None
         self.previousState = None
+        self.updateEpsilon = False
         self.parameters = {
             "numTraining": self.numTraining,
             "numExplore": self.numExplore,
@@ -127,6 +128,7 @@ class PacmanAgent(Agent):
 
     def toJson(self):
         self.updateJson()
+        self.parameters.update(self.rewards.toJson())
         return {"parameters": self.parameters, "metrics": self.metrics}
 
     def registerInitialState(self, gameState):
@@ -149,13 +151,14 @@ class PacmanAgent(Agent):
             reward=self.rewards(),
             isTerminal=True,
             validActionsIndexes=[0],
-            action=self.previousState.action
+            action=self.previousState.action,
         )
         self.initState(state)
         if self.previousState != None and self.episodeIt >= self.numExplore:
             self.learn(state)
         self.previousState = None
-        if self.episodeIt < self.numTraining and self.episodeIt >= self.numExplore:
+        updateEpsilon = self.updateEpsilon if self.episodeIt < self.numTraining else False
+        if updateEpsilon or (self.episodeIt < self.numTraining and self.episodeIt >= self.numExplore):
             self.epsilon -= self.epsilonStep
             self.epsilonArray = [self.epsilon, 1 - self.epsilon]
         self.collectMetrics(gameState)
@@ -177,7 +180,7 @@ class PacmanAgent(Agent):
             isTerminal=False,
             validActionsIndexes=actionsIndexes,
             validActions=actions,
-            action=self.previousState.action if self.previousState != None else DIR2CODE[Directions.STOP], 
+            action=self.previousState.action if self.previousState != None else DIR2CODE[Directions.STOP],
         )
         self.initState(state)
         if self.previousState != None and self.episodeIt >= self.numExplore:
@@ -187,7 +190,7 @@ class PacmanAgent(Agent):
     def getAction(self, state):
         actions = state.validActions
         if (self.sameActionPolicy > 1) and ((self.actionIt % self.sameActionPolicy) != 0):
-            action =  DIRECTIONS[self.previousState.action]
+            action = DIRECTIONS[self.previousState.action]
         elif self.epsilon > 0.0 and self.random.choice([True, False], p=self.epsilonArray):
             action = actions[self.random.integers(0, len(actions))]
         else:

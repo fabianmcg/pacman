@@ -19,6 +19,13 @@ class WPHCAgent(PHCAgent):
             }
         )
 
+    def initValues(self, state, numActions):
+        if state not in self.Pi:
+            self.Q[state] = np.full(numActions, 0.0)
+            self.Pi[state] = np.full(numActions, 1.0 / numActions)
+            self.C[state] = 0
+            self.PiAvg[state] = np.full(numActions, 1.0 / numActions)
+
     def initState(self, agentState):
         state = agentState.state
         if state not in self.Pi:
@@ -27,6 +34,20 @@ class WPHCAgent(PHCAgent):
             self.Pi[state] = np.full(numActions, 1.0 / numActions)
             self.C[state] = 0
             self.PiAvg[state] = np.full(numActions, 1.0 / numActions)
+
+    def learnStep(self, previousState, previousAction, numActions, state, reward):
+        if state in self.Q:
+            reward += self.gamma * np.amax(self.Q[state])
+        Q = self.Q[previousState]
+        Q[previousAction] = (1 - self.alpha) * Q[previousAction] + self.alpha * reward
+        self.C[previousState] += 1
+        Pi = self.Pi[previousState]
+        PiAvg = self.PiAvg[previousState]
+        PiAvg += (Pi - PiAvg) / self.C[previousState]
+        delta = self.delta if np.dot(Pi, Q) > np.dot(PiAvg, Q) else self.deltaLose
+        Pi[previousAction] += delta if previousAction == np.argmax(Q) else -delta / (numActions - 1)
+        Pi = np.maximum(Pi, np.full(numActions, 0.0))
+        self.Pi[previousState] = Pi / np.sum(Pi)
 
     def learn(self, agentState):
         previousState = self.previousState.state
