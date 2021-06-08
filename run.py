@@ -86,14 +86,13 @@ class RunConfig:
         self.numTraining = numTraining
         self.agentOpts = agentOpts.copy()
 
-    def makeCmd(self, path="", numGames=None, numTraining=None, agent=None, ghost=None, layout=None):
+    def makeCmd(self, path="", id=0, numGames=None, numTraining=None, agent=None, ghost=None, layout=None):
         self.agent = self.agent if agent == None else agent
         self.ghost = self.ghost if ghost == None else ghost
         self.layout = self.layout if layout == None else layout
         self.numGames = self.numGames if numGames == None else numGames
         self.numTraining = self.numTraining if numTraining == None else numTraining
-        gamePath = "{}{}-{}".format(
-            self.agent, "-" + self.ghost if self.ghost != None else "", self.layout)
+        gamePath = "{}{}-{}-{:03d}".format(self.agent, "-" + self.ghost if self.ghost != None else "", self.layout, id)
         gamePath = PurePath(path, gamePath).as_posix()
         agentArgs = ""
         for k in self.agentOpts:
@@ -128,9 +127,9 @@ class RunConfig:
             cmd.extend(["-g", self.ghost])
         return cmd, gamePath
 
-    def __call__(self, run=True, path="", numGames=None, numTraining=None, agent=None, ghost=None, layout=None):
+    def __call__(self, run=True, path="", id=0, numGames=None, numTraining=None, agent=None, ghost=None, layout=None):
         try:
-            cmd, gamePath = self.makeCmd(path, numGames, numTraining, agent, ghost, layout)
+            cmd, gamePath = self.makeCmd(path, id, numGames, numTraining, agent, ghost, layout)
             if not run:
                 print("cmd:\n\t", " ".join(cmd))
                 return None
@@ -164,25 +163,45 @@ baseConfig = {
     "clipReward": False,
 }
 
+
 def runPHC(args):
     layoutsToRun = ["testClassic"]
     agentsToRun = ["PHCAgent", "WPHCAgent"]
     ghostsToRun = [None, "DirectionalGhost"]
-    deltaConfigs = [{"delta" : '0.2', "deltaLose" : '0.8'}, {"delta" : '0.6', "deltaLose" : '0.8'}]
-    alphaConfigs = ['0.25', '0.75']
-    gammaConfigs = ['0.75', '0.95']
+    deltaConfigs = [{"delta": "0.2", "deltaLose": "0.8"}, {"delta": "0.6", "deltaLose": "0.8"}]
+    alphaConfigs = ["0.25", "0.75"]
+    gammaConfigs = ["0.75", "0.95"]
+    epsilonConfigs = ["0.2", "1."]
+    it = 1
     for layout in layoutsToRun:
         for agent in agentsToRun:
             for ghost in ghostsToRun:
                 for delta in deltaConfigs:
                     for alpha in alphaConfigs:
                         for gamma in gammaConfigs:
-                            configuration = RunConfig.create(baseConfig, delta=delta['delta'], deltaLose=delta['deltaLose'], alpha=alpha, gamma=gamma)
-                            configuration(not args.print, args.out, numGames=(args.ng + args.nt), numTraining=args.nt, agent=agent, ghost=ghost, layout=layout)
+                            for epsilon in epsilonConfigs:
+                                config = baseConfig.copy()
+                                config["epsilon"] = epsilon
+                                configuration = RunConfig.create(
+                                    config, delta=delta["delta"], deltaLose=delta["deltaLose"], alpha=alpha, gamma=gamma
+                                )
+                                configuration(
+                                    not args.print,
+                                    args.out,
+                                    it,
+                                    numGames=(args.ng + args.nt),
+                                    numTraining=args.nt,
+                                    agent=agent,
+                                    ghost=ghost,
+                                    layout=layout,
+                                )
+                                it += 1
+
 
 def main():
     args = parse_args()
     runPHC(args)
+
 
 if __name__ == "__main__":
     main()
