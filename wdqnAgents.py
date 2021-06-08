@@ -68,7 +68,7 @@ class WDQNAgent(DQNAgent):
         self,
         K=1,
         gamma=0.95,
-        numEpochs=100,
+        numEpochs=50,
         **kwargs,
     ):
         super().__init__(K=int(K), **kwargs, recurrentNetwork=int(K) > 1, gamma=float(gamma), sameActionPolicy=0)
