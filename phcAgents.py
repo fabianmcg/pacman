@@ -22,6 +22,10 @@ class PHCAgent(PacmanAgent):
             }
         )
 
+    def clear(self):
+        self.Q = dict()
+        self.Pi = dict()
+
     def updateJson(self):
         self.parameters["numExploredStates"] = len(self.Q)
 
@@ -52,5 +56,10 @@ class PHCAgent(PacmanAgent):
 
     def selectAction(self, agentState):
         Pi = self.Pi[agentState.state]
-        action = self.random.choice(list(range(len(agentState.validActions))), p=Pi)
+        action = self.random.choice(Pi.size, p=Pi)
         return agentState.validActions[action]
+
+    def selectActionNum(self, agentState):
+        Pi = self.Pi[agentState]
+        action = self.random.choice(Pi.size, p=Pi)
+        return action
