@@ -50,6 +50,15 @@ def parse_args():
         help="Number of training games",
     )
     parser.add_argument(
+        "-T",
+        "--threads",
+        dest="threads",
+        metavar="<no. threads>",
+        type=int,
+        default=8,
+        help="Number of threads",
+    )
+    parser.add_argument(
         "-o",
         "--out",
         dest="out",
@@ -130,8 +139,8 @@ class RunConfig:
     def __call__(self, run=True, path="", id=0, numGames=None, numTraining=None, agent=None, ghost=None, layout=None):
         try:
             cmd, gamePath = self.makeCmd(path, id, numGames, numTraining, agent, ghost, layout)
+            print("cmd:\n", " ".join(cmd))
             if not run:
-                print("cmd:\n\t", " ".join(cmd))
                 return None
             Path(gamePath).mkdir(parents=True, exist_ok=True)
             cmdOut = subprocess.run(cmd, capture_output=True, text=True)
@@ -173,6 +182,7 @@ def runPHC(args):
     gammaConfigs = ["0.75", "0.95"]
     epsilonConfigs = ["0.2", "1."]
     it = 1
+    cmds = []
     for layout in layoutsToRun:
         for agent in agentsToRun:
             for ghost in ghostsToRun:
@@ -185,17 +195,29 @@ def runPHC(args):
                                 configuration = RunConfig.create(
                                     config, delta=delta["delta"], deltaLose=delta["deltaLose"], alpha=alpha, gamma=gamma
                                 )
-                                configuration(
-                                    not args.print,
-                                    args.out,
-                                    it,
-                                    numGames=(args.ng + args.nt),
-                                    numTraining=args.nt,
-                                    agent=agent,
-                                    ghost=ghost,
-                                    layout=layout,
+                                cmds.append(
+                                    tuple(
+                                        [
+                                            configuration,
+                                            {
+                                                "run": not args.print,
+                                                "path": args.out,
+                                                "id": it,
+                                                "numGames": (args.ng + args.nt),
+                                                "numTraining": args.nt,
+                                                "agent": agent,
+                                                "ghost": ghost,
+                                                "layout": layout,
+                                            },
+                                        ]
+                                    )
                                 )
                                 it += 1
+    function = lambda x: x[0](**(x[1]))
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=args.threads) as executor:
+        executor.map(function, cmds)
 
 
 def main():
