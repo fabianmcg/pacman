@@ -219,10 +219,56 @@ def runPHC(args):
     with ThreadPoolExecutor(max_workers=args.threads) as executor:
         executor.map(function, cmds)
 
+def runPHCS(args):
+    layoutsToRun = ["smallClassic"]
+    agentsToRun = ["PHCAgent", "WPHCAgent"]
+    ghostsToRun = ["DirectionalGhost"]
+    deltaConfigs = [{"delta": "0.2", "deltaLose": "0.8"}]
+    alphaConfigs = ["0.75"]
+    gammaConfigs = ["0.75", "0.95"]
+    epsilonConfigs = ["1."]
+    it = 1
+    cmds = []
+    for layout in layoutsToRun:
+        for agent in agentsToRun:
+            for ghost in ghostsToRun:
+                for delta in deltaConfigs:
+                    for alpha in alphaConfigs:
+                        for gamma in gammaConfigs:
+                            for epsilon in epsilonConfigs:
+                                config = baseConfig.copy()
+                                config["epsilon"] = epsilon
+                                configuration = RunConfig.create(
+                                    config, delta=delta["delta"], deltaLose=delta["deltaLose"], alpha=alpha, gamma=gamma
+                                )
+                                cmds.append(
+                                    tuple(
+                                        [
+                                            configuration,
+                                            {
+                                                "run": not args.print,
+                                                "path": args.out,
+                                                "id": it,
+                                                "numGames": (args.ng + args.nt),
+                                                "numTraining": args.nt,
+                                                "agent": agent,
+                                                "ghost": ghost,
+                                                "layout": layout,
+                                            },
+                                        ]
+                                    )
+                                )
+                                it += 1
+    function = lambda x: x[0](**(x[1]))
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=args.threads) as executor:
+        executor.map(function, cmds)
+
 
 def main():
     args = parse_args()
-    runPHC(args)
+    runPHCS(args)
 
 
 if __name__ == "__main__":
