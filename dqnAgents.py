@@ -193,7 +193,6 @@ class DQNNetwork:
             "convolutionalArchitecture": self.convolutionalArchitecture,
             "learningRate": self.learningRate,
             "C": self.C,
-            "inputShape": self.inputShape,
             "optimizerName": self.optimizerName,
             "recurrentNetwork": self.recurrentNetwork,
             "sgdBatchSize": self.sgdBatchSize,
