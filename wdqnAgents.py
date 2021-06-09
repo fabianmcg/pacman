@@ -8,6 +8,7 @@ from ast import literal_eval
 from collections import deque
 from dqnAgents import DQNAgent
 from wphcAgents import WPHCAgent
+import tensorflow as tf
 
 
 class DQNTransition:
@@ -38,16 +39,16 @@ class DQNHistory:
         if self.K == 1:
             return self.stack[1].state[0]
         stack = list(self.stack)[-self.K :]
-        return np.array([state.state[0] for state in stack])
+        return tf.stack([state.state[0] for state in stack])
 
     def phiPrev(self):
         if self.K == 1:
             return self.stack[0].state[0]
         stack = list(self.stack)[: self.K]
-        return np.array([state.state[0] for state in stack])
+        return tf.stack([state.state[0] for state in stack])
 
     def reward(self):
-        return self.stack[-1].reward
+        return tf.constant(self.stack[-1].reward)
 
     def action(self):
         return self.stack[-1].action
@@ -58,7 +59,7 @@ class DQNHistory:
             self.action(),
             self.phi(),
             self.reward(),
-            self.stack[-1].isTerminal,
+            tf.constant(self.stack[-1].isTerminal, dtype=tf.float32),
             self.stack[self.K - 1].state[1],
         )
 
@@ -84,7 +85,7 @@ class WDQNAgent(DQNAgent):
         matrix = gameStateTensor(gameState)
         matrix = (matrix - np.mean(matrix)) / np.std(matrix)
         wphcVector = self.wphcAgent.getState(gameState) if self.episodeIt < self.numExplore else None
-        return tuple([matrix, wphcVector])
+        return tuple([tf.convert_to_tensor(matrix, dtype=tf.float32), wphcVector])
 
     def agentInit(self, gameState):
         if self.fromSaved:
@@ -125,8 +126,8 @@ class WDQNAgent(DQNAgent):
 
     def trainNetwork(self):
         size = min(self.experienceIt, self.experienceSize)
-        x = np.array([self.experienceReplay[k].state for k in range(size)])
-        y = np.array([self.wphcAgent.Q[self.experienceReplay[k].stateW] for k in range(size)])
+        x = tf.stack([self.experienceReplay[k].state for k in range(size)])
+        y = tf.stack([tf.convert_to_tensor(self.wphcAgent.Q[self.experienceReplay[k].stateW]) for k in range(size)])
         self.network.learnQ(x=x, y=y, verbose=1, epochs=self.numEpochs)
         self.network.updateNetwork(0)
 
@@ -140,7 +141,7 @@ class WDQNAgent(DQNAgent):
     def selectAction(self, agentState):
         if self.episodeIt < self.numExplore:
             return DIRECTIONS[self.wphcAgent.selectActionNum(agentState.state[1])]
-        Q = self.network(np.array([self.gameHistory.phi()])).flatten()
+        Q = self.network(tf.expand_dims(self.gameHistory.phi(), 0)).flatten()
         maxQIndex = np.argwhere(Q == np.amax(Q)).flatten()
         maxQIndex = maxQIndex[0] if maxQIndex.size == 1 else self.random.choice(maxQIndex)
         return DIRECTIONS[maxQIndex]
