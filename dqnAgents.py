@@ -62,6 +62,22 @@ def recurrentConvolutionalNetwork(
     return model
 
 
+@tf.function
+def updateValues(q, qq, a, r, t, g):
+    nt = tf.multiply(1 - t, a)
+    qq = tf.multiply(nt, tf.expand_dims(tf.reduce_max(qq, axis=1), 1)) * g + tf.multiply(
+        tf.clip_by_value(r, clip_value_min=-1, clip_value_max=1), a
+    )
+    return tf.multiply(q, 1 - a) + qq
+
+
+@tf.function
+def updateValuesClipped(q, qq, a, r, t, g):
+    nt = tf.multiply(1 - t, a)
+    qq = tf.multiply(nt, tf.expand_dims(tf.reduce_max(qq, axis=1), 1)) * g + tf.multiply(r, a)
+    return tf.multiply(q, 1 - a) + qq
+
+
 class DQNNetwork:
     def __init__(
         self,
@@ -164,10 +180,10 @@ class DQNNetwork:
         self.fitHistory = self.QNetwork.fit(**kwargs)
 
     def inferQ(self, x):
-        return self.QNetwork(x, training=False).numpy()
+        return self.QNetwork(x, training=False)
 
     def inferQQ(self, x):
-        return self.QQNetwork(x, training=False).numpy()
+        return self.QQNetwork(x, training=False)
 
     def toJson(self):
         import json
@@ -215,22 +231,22 @@ class DQNHistory:
             return self.stack[1].state
         stack = list(self.stack)[-self.K :]
         if self.recurrentOrder:
-            return np.array([state.state for state in stack])
-        return np.concatenate(tuple([state.state for state in stack]), axis=2)
+            return tf.stack([state.state for state in stack])
+        return np.stack([state.state for state in stack], axis=2)
 
     def phiPrev(self):
         if self.K == 1:
             return self.stack[0].state
         stack = list(self.stack)[: self.K]
         if self.recurrentOrder:
-            return np.array([state.state for state in stack])
-        return np.concatenate(tuple([state.state for state in stack]), axis=2)
+            return tf.stack([state.state for state in stack])
+        return tf.stack([state.state for state in stack], axis=2)
 
     def reward(self):
         if self.isDiscrete:
             stack = list(self.stack)[-self.K :]
-            return np.sum(np.array([state.reward for state in stack]))
-        return self.stack[-1].reward
+            return tf.constant(np.sum(np.array([state.reward for state in stack])))
+        return tf.constant(self.stack[-1].reward)
 
     def action(self):
         if self.isDiscrete:
@@ -238,7 +254,13 @@ class DQNHistory:
         return self.stack[-1].action
 
     def getTransition(self):
-        return DQNTransition(self.phiPrev(), self.action(), self.phi(), self.reward(), self.stack[-1].isTerminal)
+        return DQNTransition(
+            self.phiPrev(),
+            self.action(),
+            self.phi(),
+            self.reward(),
+            tf.constant(self.stack[-1].isTerminal, dtype=tf.float32),
+        )
 
 
 class DQNAgent(PacmanAgent):
@@ -306,7 +328,7 @@ class DQNAgent(PacmanAgent):
     def getState(self, gameState):
         matrix = gameStateTensor(gameState)
         matrix = (matrix - np.mean(matrix)) / np.std(matrix)
-        return matrix
+        return tf.convert_to_tensor(matrix, dtype=tf.float32)
 
     def agentInit(self, gameState):
         if self.fromSaved:
@@ -334,19 +356,17 @@ class DQNAgent(PacmanAgent):
         if self.experienceIt == 0:
             return None
         miniBatchIndexes = self.selectMiniBatch()
-        x = np.array([self.experienceReplay[k].state for k in miniBatchIndexes])
-        xx = np.array([self.experienceReplay[k].nextState for k in miniBatchIndexes])
-        actions = np.array([self.experienceReplay[k].action for k in miniBatchIndexes])
-        rewards = np.array([self.experienceReplay[k].reward for k in miniBatchIndexes])
-        isTerminal = np.array([self.experienceReplay[k].isTerminal for k in miniBatchIndexes])
+        x = tf.stack([self.experienceReplay[k].state for k in miniBatchIndexes])
+        xx = tf.stack([self.experienceReplay[k].nextState for k in miniBatchIndexes])
+        actions = tf.one_hot([self.experienceReplay[k].action for k in miniBatchIndexes], self.numActions)
+        rewards = tf.expand_dims(tf.stack([self.experienceReplay[k].reward for k in miniBatchIndexes]), 1)
+        isTerminal = tf.expand_dims(tf.stack([self.experienceReplay[k].isTerminal for k in miniBatchIndexes]), 1)
         y = self.network.inferQ(x)
-        yy = np.max(self.network.inferQQ(xx), axis=1) * self.gamma
-        yy[isTerminal == True] = 0.0
+        yy = self.network.inferQQ(xx)
         if self.clipValues:
-            rewards = np.clip(rewards, -1.0, 1.0)
-        yy += rewards
-        y[tuple(range(actions.size)), tuple(actions)] = yy
-        self.network.learn(x, y)
+            self.network.learn(x, updateValuesClipped(y, yy, actions, rewards, isTerminal, self.gamma))
+        else:
+            self.network.learn(x, updateValues(y, yy, actions, rewards, isTerminal, self.gamma))
 
     def initState(self, agentState):
         if self.previousState == None:
@@ -369,7 +389,7 @@ class DQNAgent(PacmanAgent):
             self.network.updateNetwork(self.totalActionIt)
 
     def selectAction(self, agentState):
-        Q = self.network(np.array([self.gameHistory.phi()])).flatten()
+        Q = self.network(tf.expand_dims(self.gameHistory.phi(), 0)).flatten()
         maxQIndex = np.argwhere(Q == np.amax(Q)).flatten()
         maxQIndex = maxQIndex[0] if maxQIndex.size == 1 else self.random.choice(maxQIndex)
         return DIRECTIONS[maxQIndex]
