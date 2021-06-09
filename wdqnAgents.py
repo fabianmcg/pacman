@@ -122,7 +122,9 @@ class WDQNAgent(DQNAgent):
             self.trainNetwork()
             self.wphcAgent.updateJson()
             self.parameters["whpcTotalActions"] = self.whpcActions
-            self.parameters = self.wphcAgent.parameters | self.parameters
+            paremeters = self.wphcAgent.parameters.copy()
+            paremeters.update(self.parameters)
+            self.parameters = paremeters
 
     def trainNetwork(self):
         size = min(self.experienceIt, self.experienceSize)
