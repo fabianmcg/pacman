@@ -83,7 +83,7 @@ class DQNNetwork:
         self,
         numActions,
         recurrentNetwork,
-        C=200,
+        C=10000,
         learningRate=0.00025,
         arch=None,
         convArch=None,
@@ -265,7 +265,7 @@ class DQNHistory:
 class DQNAgent(PacmanAgent):
     def __init__(
         self,
-        K=4,
+        K=1,
         gamma=0.95,
         minibatchSize=32,
         experienceSize=200000,
