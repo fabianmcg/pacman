@@ -78,7 +78,7 @@ class WDQNAgent(DQNAgent):
         self.wphcAgent = WPHCAgent(gamma=float(gamma), **kwargs)
         self.sameActionPolicy = 0
         self.gameHistory = DQNHistory(self.K)
-        self.whpcActions = 0
+        self.wphcActions = 0
         self.numEpochs = int(numEpochs)
         self.parameters["numEpochs"] = self.numEpochs
 
@@ -119,10 +119,10 @@ class WDQNAgent(DQNAgent):
                     agentState.reward,
                 )
         if self.episodeIt == self.numExplore and self.actionIt == 0:
-            self.whpcActions = self.totalActionIt
+            self.wphcActions = self.totalActionIt
             self.trainNetwork()
             self.wphcAgent.updateJson()
-            self.parameters["whpcTotalActions"] = self.whpcActions
+            self.parameters["whpcTotalActions"] = self.wphcActions
             paremeters = self.wphcAgent.parameters.copy()
             paremeters.update(self.parameters)
             self.parameters = paremeters
@@ -136,7 +136,7 @@ class WDQNAgent(DQNAgent):
 
     def learn(self, agentState):
         if self.episodeIt < self.numTraining and self.episodeIt > self.numExplore:
-            actionIt = self.totalActionIt - self.whpcActions + 1
+            actionIt = self.totalActionIt - self.wphcActions + 1
             if (actionIt % self.trainUpdates) == 0:
                 self.trainStep()
             self.network.updateNetwork(actionIt)

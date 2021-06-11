@@ -28,7 +28,7 @@ class PacmanAgent(Agent):
         numTraining=0,
         finalEpsilon=0.005,
         finalTrainingEpsilon=0.1,
-        noStopAction=None,
+        useStopAction=None,
         sameActionPolicy=0,
         _updateEpsilon=False,
         **kwargs,
@@ -48,7 +48,7 @@ class PacmanAgent(Agent):
         self.numTraining = int(numTraining)
         self.finalEpsilon = float(finalEpsilon)
         self.finalTrainingEpsilon = float(finalTrainingEpsilon)
-        self.noStopAction = True if noStopAction == None else literal_eval(noStopAction)
+        self.useStopAction = False if useStopAction == None else literal_eval(useStopAction)
         self.sameActionPolicy = int(sameActionPolicy)
         self.rewards = Rewards(**kwargs)
         self.random = np.random.default_rng(int(kwargs["seed"])) if "seed" in kwargs else np.random.default_rng(12345)
@@ -69,7 +69,7 @@ class PacmanAgent(Agent):
             "finalEpsilon": self.finalEpsilon,
             "finalTrainingEpsilon": self.finalTrainingEpsilon,
             "epsilonStep": self.epsilonStep,
-            "noStopAction": self.noStopAction,
+            "useStopAction": self.useStopAction,
             "sameActionPolicy": self.sameActionPolicy,
             "seed": int(kwargs["seed"]) if "seed" in kwargs else 12345,
         }
@@ -178,7 +178,7 @@ class PacmanAgent(Agent):
     def observationFunction(self, gameState):
         self.rewards.computeReward(gameState)
         actions, actionsIndexes = getActions(gameState)
-        if self.noStopAction:
+        if not self.useStopAction:
             actions.remove(Directions.STOP)
             actionsIndexes.remove(DIR2CODE[Directions.STOP])
         state = PacmanState(
