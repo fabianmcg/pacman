@@ -85,11 +85,11 @@ class DQNNetwork:
         recurrentNetwork,
         C=10000,
         learningRate=0.00025,
+        optimizer="RMSProp",
+        sgdBatchSize=4,
         arch=None,
         convArch=None,
-        optimizer="RMSProp",
         clipLoss=False,
-        sgdBatchSize=4,
         **kwargs,
     ):
         self.it = 0
@@ -294,7 +294,7 @@ class DQNAgent(PacmanAgent):
         self.Qname = Qname
         self.QQname = QQname
         self.fromSaved = False if fromSaved == None else literal_eval(fromSaved)
-        self.numActions = 4 if self.noStopAction else 5
+        self.numActions = 5 if self.useStopAction else 4
         self.sameActionPolicy = self.K if self.sameActionPolicy >= 1 else 1
         self.network = DQNNetwork(
             numActions=self.numActions, recurrentNetwork=self.recurrentNetwork, clipLoss=self.clipValues, **kwargs
