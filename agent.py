@@ -30,6 +30,7 @@ class PacmanAgent(Agent):
         finalTrainingEpsilon=0.1,
         noStopAction=None,
         sameActionPolicy=0,
+        _updateEpsilon=False,
         **kwargs,
     ):
         self.index = 0
@@ -51,14 +52,16 @@ class PacmanAgent(Agent):
         self.sameActionPolicy = int(sameActionPolicy)
         self.rewards = Rewards(**kwargs)
         self.random = np.random.default_rng(int(kwargs["seed"])) if "seed" in kwargs else np.random.default_rng(12345)
-        self.epsilonStep = (self.epsilon - self.finalTrainingEpsilon) / (
-            (self.numTraining - self.numExplore) if self.numTraining > 0 else 1
+        self.epsilonStep = (
+            self.computeEpsilonStep(self.epsilon, self.finalTrainingEpsilon, self.numTraining - self.numExplore)
+            if not _updateEpsilon
+            else self.computeEpsilonStep(self.epsilon, self.finalTrainingEpsilon, self.numTraining)
         )
         self.epsilonArray = [self.epsilon, 1 - self.epsilon]
         self.startTime = None
         self.startGameTime = None
         self.previousState = None
-        self.updateEpsilon = False
+        self.updateEpsilon = _updateEpsilon
         self.parameters = {
             "numTraining": self.numTraining,
             "numExplore": self.numExplore,
@@ -89,6 +92,9 @@ class PacmanAgent(Agent):
     def selectAction(self, agentState):
         return Directions.STOP
 
+    def computeEpsilonStep(self, epsilonBegin, epsilonEnd, steps):
+        return (epsilonBegin - epsilonEnd) / max(steps, 1)
+
     def collectMetrics(self, gameState):
         stopGameTime = time.perf_counter()
         self.metrics["games"].append(
@@ -99,6 +105,7 @@ class PacmanAgent(Agent):
                 self.actionIt,
                 stopGameTime - self.startGameTime,
                 self.episodeIt < self.numTraining,
+                self.epsilon,
             ]
         )
         self.metrics["totalActions"] += self.actionIt

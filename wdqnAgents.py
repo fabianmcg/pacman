@@ -72,14 +72,15 @@ class WDQNAgent(DQNAgent):
         numEpochs=50,
         **kwargs,
     ):
-        super().__init__(K=int(K), **kwargs, recurrentNetwork=int(K) > 1, gamma=float(gamma), sameActionPolicy=0)
+        super().__init__(
+            K=int(K), **kwargs, recurrentNetwork=int(K) > 1, gamma=float(gamma), sameActionPolicy=0, _updateEpsilon=True
+        )
         self.wphcAgent = WPHCAgent(gamma=float(gamma), **kwargs)
         self.sameActionPolicy = 0
         self.gameHistory = DQNHistory(self.K)
         self.whpcActions = 0
         self.numEpochs = int(numEpochs)
         self.parameters["numEpochs"] = self.numEpochs
-        self.updateEpsilon = True
 
     def getState(self, gameState):
         matrix = gameStateTensor(gameState)
