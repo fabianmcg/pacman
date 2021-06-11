@@ -120,7 +120,8 @@ class WDQNAgent(DQNAgent):
                 )
         if self.episodeIt == self.numExplore and self.actionIt == 0:
             self.wphcActions = self.totalActionIt
-            self.trainNetwork()
+            if self.totalActionIt > 0:
+                self.trainNetwork()
             self.wphcAgent.updateJson()
             self.parameters["whpcTotalActions"] = self.wphcActions
             paremeters = self.wphcAgent.parameters.copy()
