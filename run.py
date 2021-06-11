@@ -91,7 +91,6 @@ def parse_args():
         "-G",
         "--ghost",
         dest="ghost",
-        metavar="<ghost>",
         choices=ghosts,
         default="RandomGhost",
         help="ghost kind",
@@ -401,15 +400,6 @@ def parse_args():
         help="determines whether to clip the error term to the [-1, 1] range",
     )
     wdqn.add_argument(
-        "-r",
-        "--recurrent",
-        dest="recurrentNetwork",
-        action="store_const",
-        const="True",
-        default="False",
-        help="whether to use a convolutional LSTM layer as the input layer",
-    )
-    wdqn.add_argument(
         "-P",
         "--policy-path",
         dest="Qname",
@@ -534,10 +524,12 @@ class RunConfig:
         try:
             cmd = self.makeCmd()
             print("cmd:\n", self.cmd)
-            if not run:
+            if run != True:
                 return None
             Path(self.gamePath).mkdir(parents=True, exist_ok=True)
             cmdOut = subprocess.run(cmd, capture_output=True, text=True)
+            for line in cmdOut.stdout:
+                print(line, end="")
             with open(PurePath(self.gamePath, "stdout.txt").as_posix(), "w") as file:
                 print(cmdOut.stdout, file=file)
             with open(PurePath(self.gamePath, "stderr.txt").as_posix(), "w") as file:
@@ -552,19 +544,19 @@ class RunConfig:
 def run(args):
     path = args.path
     printCmd = args.print
+    args.agent += "Agent"
     options = vars(args)
     options.pop("path")
     options.pop("print")
     config = RunConfig(path, **options)
-    config.makeCmd()
-    if printCmd:
-        print(config.cmd)
-        return
-    config(False)
+    config(not printCmd)
 
 
 def main():
     args = parse_args()
+    if args.agent == None:
+        print("Error, an agent must be specified! For help use: python3 run.py -h")
+        return
     run(args)
 
 

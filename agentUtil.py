@@ -29,25 +29,6 @@ def serializeGhostState(agent):
     return (x, y, agent.scaredTimer)
 
 
-from scipy import ndimage
-
-
-def gameStateMatrixScaled(gameState):
-    walls = np.array(gameState.getWalls().data, dtype=np.int16)
-    food = np.array(gameState.getFood().data, dtype=np.int16)
-    grid = 2 * food + walls
-    for capsule in gameState.data.capsules:
-        grid[getPositionTuple(capsule)] = 3
-    grid[getPositionTuple(gameState.getPacmanPosition())] = 4
-    for i, ghost in enumerate(gameState.getGhostStates()):
-        grid[getPositionTuple(ghost.getPosition())] += (2 - (ghost.scaredTimer > 0)) * 5 * (3 ** i)
-    x = 32 / grid.shape[0]
-    y = 32 / grid.shape[1]
-    grid = ndimage.zoom(grid, (x, y), order=0, grid_mode=True, mode="nearest")
-    grid = grid / ((3 ** len(gameState.getGhostStates())) * 5)
-    return grid[..., np.newaxis]
-
-
 def gameStateMatrix(gameState):
     walls = np.array(gameState.getWalls().data, dtype=np.int16)
     food = np.array(gameState.getFood().data, dtype=np.int16)
@@ -81,10 +62,13 @@ gameStateVector = gameStateVectorTuple
 
 
 __image_number = 0
-def saveMatrixAsImage(matrix, name = None):
+
+
+def saveMatrixAsImage(matrix, name=None):
     from PIL import Image
+
     global __image_number
     if name == None:
         name = "{:04d}.png".format(__image_number)
         __image_number += 1
-    Image.fromarray(np.uint8(matrix * 255.0), 'L').save(name)
+    Image.fromarray(np.uint8(matrix * 255.0), "L").save(name)
